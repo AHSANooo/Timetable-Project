@@ -7,15 +7,21 @@ def extract_batch_colors(worksheet):
     batch_colors = {}
     data = worksheet.get_all_values()
 
-    for col_idx in range(len(data[0])):  # Iterate over columns
-        for row_idx in range(5):  # Check first 5 rows for batch info
+    if not data:  # Ensure data is not empty
+        return batch_colors
+
+    for col_idx in range(len(data[0])):  # Iterate over columns in the first row
+        for row_idx in range(min(5, len(data))):  # Check only available rows
+            if col_idx >= len(data[row_idx]):  # Ensure column exists in row
+                continue
+
             cell_value = data[row_idx][col_idx]
             if "BS" in cell_value:
-                # Google Sheets API doesn't provide colors directly, assuming color detection via another approach
                 batch_colors[f"C{col_idx+1}"] = cell_value  # Mapping column to batch name
                 break
 
     return batch_colors
+
 
 def get_timetable(worksheet, user_batch, user_section):
     """Fetch the timetable for a specific batch and section."""
@@ -35,6 +41,9 @@ def get_timetable(worksheet, user_batch, user_section):
 
     data = worksheet.get_all_values()
     for row in data[6:]:  # Start from row 6 (assuming headers above)
+        if len(row) <= batch_column:  # Ensure column exists in the row
+            continue
+
         time_slot = row[0]
         if user_section in row[batch_column]:  # Check if section is listed
             subject = row[batch_column].strip()
@@ -42,3 +51,4 @@ def get_timetable(worksheet, user_batch, user_section):
                 output.append(f"{time_slot} - {subject}")
 
     return "\n".join(output)
+
