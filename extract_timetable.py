@@ -42,32 +42,52 @@ def extract_batch_colors(spreadsheet):
 
 
 
-def get_timetable(worksheet, user_batch, user_section):
-    """Fetch the timetable for a specific batch and section."""
-    batch_colors = extract_batch_colors(worksheet)
+def get_timetable(spreadsheet, user_batch, user_section):
+    """Retrieve the timetable for the given batch and section."""
+    batch_colors = extract_batch_colors(spreadsheet)  # Extract batch colors
 
-    # Find the column where this batch exists
-    batch_column = None
-    for col, batch_name in batch_colors.items():
+    batch_color = None
+    for color, batch_name in batch_colors.items():
         if user_batch in batch_name:
-            batch_column = int(col[1:]) - 1  # Convert column label (e.g., C3) to index
+            batch_color = color
             break
 
-    if batch_column is None:
-        return "Batch not found!"
+    if not batch_color:
+        return "❌ Batch not found!"
 
-    output = [f"Timetable for {user_batch}, Section {user_section}:"]
+    output = [f"📅 Timetable for {user_batch}, Section {user_section}:"]
 
-    data = worksheet.get_all_values()
-    for row in data[6:]:  # Start from row 6 (assuming headers above)
-        if len(row) <= batch_column:  # Ensure column exists in the row
-            continue
+    # Get the relevant worksheets
+    timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-        time_slot = row[0]
-        if user_section in row[batch_column]:  # Check if section is listed
-            subject = row[batch_column].strip()
-            if subject:
-                output.append(f"{time_slot} - {subject}")
+    for sheet_name in timetable_sheets:
+        try:
+            worksheet = spreadsheet.worksheet(sheet_name)  # ✅ Fetch correct sheet
+        except Exception:
+            continue  # Skip missing sheets
 
-    return "\n".join(output)
+        data = worksheet.get_all_values()  # ✅ Ensure we are working with a worksheet
+        if not data:
+            continue  # Skip empty sheets
 
+        day_schedule = [f"\n📆 {sheet_name}:"]
+
+        for row in data[5:]:  # Skip the first 5 rows (header)
+            time_slot = row[0] if len(row) > 0 else None
+            section_found = False
+
+            for col_idx, cell_value in enumerate(row):
+                if f"C{col_idx+1}" == batch_color and isinstance(cell_value, str):
+                    if user_section in cell_value:
+                        section_found = True
+                        subject = cell_value.strip()
+                        if subject:
+                            day_schedule.append(f"{time_slot} - {subject}")
+
+            if not section_found:
+                continue
+
+        if len(day_schedule) > 1:
+            output.append("\n".join(day_schedule))
+
+    return "\n".join(output) if len(output) > 1 else "⛔ No classes found for this batch/section."
