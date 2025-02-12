@@ -1,11 +1,10 @@
+import streamlit as st
+import json
+from google.oauth2.service_account import Credentials
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
-# Google Sheets API Setup
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-CREDS_FILE = 'time-table-project-450013-d1f3b8e418b1.json'  # Update this with your downloaded JSON
 
 def get_google_sheets_data(sheet_url):
-    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_FILE, SCOPES)
+    credentials_dict = st.secrets["google_service_account"]
+    creds = Credentials.from_service_account_info(credentials_dict, scopes=["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
     client = gspread.authorize(creds)
     return client.open_by_url(sheet_url)
