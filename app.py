@@ -18,7 +18,7 @@ def main():
         return
 
     # Display available batches for reference
-    st.write("Available Batches:", sorted(set(batch_details.values())))
+   # st.write("Available Batches:", sorted(set(batch_details.values())))
 
     # User inputs
     batch = st.text_input("Enter your batch (e.g., 'BS CS (2023)')").strip()
