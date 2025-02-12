@@ -1,38 +1,59 @@
-def extract_batch_details(sheet):
-    batch_details = {}
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill
 
-    for worksheet in sheet.worksheets():
-        data = worksheet.get_all_values()  # Get all data as a list of lists
-        for row in data[:5]:  # Checking first 5 rows for batch info
+
+def extract_batch_colors(file_path):
+    """Extract batch colors from the timetable file."""
+    wb = load_workbook(filename=file_path, data_only=True)
+    batch_colors = {}
+
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+
+        for col in ws.iter_cols(min_row=1, max_row=5):  # Checking first 5 rows for batch info
+            for cell in col:
+                if cell.value and isinstance(cell.value, str) and "BS" in cell.value:
+                    color = cell.fill.start_color.rgb
+                    if color and color != "00000000":  # Ignore empty colors
+                        batch_colors[color] = cell.value
+
+    return batch_colors
+
+
+def get_timetable(file_path, user_batch, user_section):
+    """Fetch the timetable for a specific batch and section."""
+    wb = load_workbook(filename=file_path, data_only=True)
+    batch_colors = extract_batch_colors(file_path)
+
+    batch_color = None
+    for color, batch_name in batch_colors.items():
+        if user_batch in batch_name:
+            batch_color = color
+            break
+
+    if not batch_color:
+        return "Batch not found!"
+
+    output = [f"Timetable for {user_batch}, Section {user_section}:"]
+
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        day_schedule = [f"\n{sheet_name}:"]
+
+        for row in ws.iter_rows(min_row=6):  # Start from row 6, assuming first rows are headers
+            time_slot = row[0].value
+            section_found = False
+
             for cell in row:
-                if "BS" in cell:  # Example: "BS CS (2023) - A"
-                    parts = cell.split(" ")
-                    if len(parts) >= 4:
-                        batch = parts[2].strip("()")  # Extracts 2023
-                        department = parts[1]  # Extracts CS
-                        section = parts[3]  # Extracts A
+                if cell.fill.start_color.rgb == batch_color and isinstance(cell.value, str):
+                    if user_section in cell.value:
+                        section_found = True
+                        subject = cell.value.strip()
+                        if subject:
+                            day_schedule.append(f"{time_slot} - {subject}")
 
-                        if batch not in batch_details:
-                            batch_details[batch] = {}
-                        if department not in batch_details[batch]:
-                            batch_details[batch][department] = set()
-                        batch_details[batch][department].add(section)
-
-    return batch_details
-
-def get_timetable(sheet, batch, department, section):
-    output = [f"Timetable for {department} ({batch}), Section {section}:"]
-
-    for worksheet in sheet.worksheets():
-        data = worksheet.get_all_values()
-        day_schedule = [f"\n{worksheet.title}:"]
-
-        for row in data[5:]:  # Start from row 6 (assuming row 1-5 contain headers)
-            time_slot = row[0]
-            for cell in row:
-                if f"({section})" in cell:
-                    subject = cell.strip()
-                    day_schedule.append(f"{time_slot} | {subject}")
+            if not section_found:
+                continue
 
         if len(day_schedule) > 1:
             output.append("\n".join(day_schedule))
