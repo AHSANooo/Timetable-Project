@@ -2,12 +2,17 @@ import pandas as pd
 import gspread
 from openpyxl.styles import PatternFill
 
+import streamlit as st
+
 def extract_batch_colors(worksheet):
     """Extract batch colors from the first few rows of Google Sheets."""
     batch_colors = {}
     data = worksheet.get_all_values()
 
-    if not data:  # Ensure data is not empty
+    st.write("🔍 Checking first few rows for batch info:", data[:5])  # Debugging Output
+
+    if not data:
+        st.error("❌ No data found in the sheet.")
         return batch_colors
 
     for col_idx in range(len(data[0])):  # Iterate over columns in the first row
@@ -15,12 +20,17 @@ def extract_batch_colors(worksheet):
             if col_idx >= len(data[row_idx]):  # Ensure column exists in row
                 continue
 
-            cell_value = data[row_idx][col_idx]
-            if "BS" in cell_value:
-                batch_colors[f"C{col_idx+1}"] = cell_value  # Mapping column to batch name
-                break
+            cell_value = data[row_idx][col_idx].strip()  # Remove spaces
+
+            if "BS" in cell_value:  # Check if batch name is found
+                batch_colors[f"C{col_idx+1}"] = cell_value  # Map column to batch name
+                st.write(f"✅ Found batch: {cell_value} at column {col_idx+1}")  # Debugging
+
+    if not batch_colors:
+        st.warning("⚠️ No batches detected! Check if the format is correct.")
 
     return batch_colors
+
 
 
 def get_timetable(worksheet, user_batch, user_section):
