@@ -7,23 +7,26 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kw
 def main():
     st.title("FAST-NUCES FCS Timetable System 📅")
 
-    # Fetch full spreadsheet object (not just one worksheet)
+    # Fetch full spreadsheet object
     spreadsheet = get_google_sheets_data(SHEET_URL)
 
-    # Extract batch details correctly
-    batch_details = extract_batch_colors(spreadsheet)  # Pass full spreadsheet object
+    # Extract all batch names correctly
+    batch_details = extract_batch_colors(spreadsheet)
 
     if not batch_details:
-        st.error("No timetable data found. Please check the sheet format.")
+        st.error("No batches found. Please check if the sheet format is correct.")
         return
 
-    # User selection
-    batch = st.selectbox("Select Batch", sorted(batch_details.values()))
-    section = st.text_input("Enter Section (e.g., 'A')")
+    # Display available batches for reference
+    st.write("Available Batches:", sorted(set(batch_details.values())))
+
+    # User inputs
+    batch = st.text_input("Enter your batch (e.g., 'BS CS (2023)')").strip()
+    section = st.text_input("Enter your section (e.g., 'A')").strip()
 
     # Display timetable
     if st.button("Show Timetable"):
-        schedule = get_timetable(spreadsheet, batch, section)  # Pass full spreadsheet
+        schedule = get_timetable(spreadsheet, batch, section)
         st.text(schedule)
 
 if __name__ == "__main__":
