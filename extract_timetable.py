@@ -43,9 +43,17 @@ def extract_batch_colors(spreadsheet):
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
-    """Retrieve the timetable for the given batch and section."""
-    batch_colors = extract_batch_colors(spreadsheet)  # Extract batch colors
+    """Extract and filter timetable based on batch and section."""
 
+    # Find batch colors from any valid weekday sheet
+    batch_colors = {}
+    for sheet_name in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]:
+        worksheet = spreadsheet.worksheet(sheet_name)
+        batch_colors = extract_batch_colors(worksheet)
+        if batch_colors:
+            break  # Stop once we have extracted batch colors
+
+    # Find the color of the user's batch
     batch_color = None
     for color, batch_name in batch_colors.items():
         if user_batch in batch_name:
@@ -53,41 +61,33 @@ def get_timetable(spreadsheet, user_batch, user_section):
             break
 
     if not batch_color:
-        return "❌ Batch not found!"
+        return "Batch not found!"
 
     output = [f"📅 Timetable for {user_batch}, Section {user_section}:"]
 
-    # Get the relevant worksheets
-    timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-
-    for sheet_name in timetable_sheets:
-        try:
-            worksheet = spreadsheet.worksheet(sheet_name)  # ✅ Fetch correct sheet
-        except Exception:
-            continue  # Skip missing sheets
-
-        data = worksheet.get_all_values()  # ✅ Ensure we are working with a worksheet
-        if not data:
-            continue  # Skip empty sheets
+    for sheet_name in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]:
+        worksheet = spreadsheet.worksheet(sheet_name)
+        data = worksheet.get_all_values()  # Get all cell values
 
         day_schedule = [f"\n📆 {sheet_name}:"]
 
-        for row in data[5:]:  # Skip the first 5 rows (header)
-            time_slot = row[0] if len(row) > 0 else None
+        for row in data[5:]:  # Start from row 6 (index 5)
+            time_slot = row[0]  # First column is the time slot
             section_found = False
 
-            for col_idx, cell_value in enumerate(row):
-                if f"C{col_idx+1}" == batch_color and isinstance(cell_value, str):
+            for col_idx, cell_value in enumerate(row[1:], start=1):
+                cell_format = worksheet.cell(row=data.index(row) + 1, col=col_idx + 1).format
+                cell_color = cell_format.backgroundColor  # Extract color
+
+                if cell_color == batch_color and isinstance(cell_value, str):
                     if user_section in cell_value:
                         section_found = True
                         subject = cell_value.strip()
                         if subject:
                             day_schedule.append(f"{time_slot} - {subject}")
 
-            if not section_found:
-                continue
+            if section_found:
+                output.append("\n".join(day_schedule))
 
-        if len(day_schedule) > 1:
-            output.append("\n".join(day_schedule))
+    return "\n".join(output)
 
-    return "\n".join(output) if len(output) > 1 else "⛔ No classes found for this batch/section."
