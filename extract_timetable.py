@@ -1,45 +1,44 @@
 import pandas as pd
 import gspread
 from openpyxl.styles import PatternFill
-
 import streamlit as st
+
+
 def extract_batch_colors(spreadsheet):
     """Extract batch colors from Google Sheets for relevant timetable sheets."""
     batch_colors = {}
 
-    # Define sheets to check (Skipping the first sheet)
+    # Get all available sheets
+    try:
+        worksheets = {ws.title: ws for ws in spreadsheet.worksheets()}  # Get all sheets
+    except AttributeError:
+        raise ValueError("❌ Invalid spreadsheet object. Ensure you're passing the full Google Sheets object.")
+
+    # Sheets to check (skip first sheet)
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-    worksheets = {ws.title: ws for ws in spreadsheet.worksheets()}  # Get all sheets
 
     for sheet_name in timetable_sheets:
         if sheet_name not in worksheets:
-            st.warning(f"⚠️ Sheet '{sheet_name}' not found, skipping.")
-            continue
+            continue  # Skip missing sheets
 
-        ws = worksheets[sheet_name]  # Get the correct worksheet
-        data = ws.get_all_values()
+        ws = worksheets[sheet_name]  # Get correct sheet
+        data = ws.get_all_values()  # Get all rows
 
         if not data:
-            st.warning(f"⚠️ No data found in '{sheet_name}', skipping.")
-            continue
+            continue  # Skip empty sheets
 
-        st.write(f"📋 Checking batches in '{sheet_name}'...")  # Debugging
-
-        for col_idx in range(len(data[0])):  # Iterate over first row columns
-            for row_idx in range(min(5, len(data))):  # Check only the first 5 rows
+        for col_idx in range(len(data[0])):  # Check first row
+            for row_idx in range(min(5, len(data))):  # Check first 5 rows
                 if col_idx >= len(data[row_idx]):
-                    continue  # Skip if column doesn't exist
+                    continue  # Skip invalid columns
 
-                cell_value = data[row_idx][col_idx].strip()  # Remove extra spaces
+                cell_value = data[row_idx][col_idx].strip()  # Remove spaces
 
-                if "BS" in cell_value:  # If cell contains a batch name
+                if "BS" in cell_value:  # If batch name found
                     batch_colors[f"C{col_idx+1}"] = cell_value  # Store batch
-                    st.write(f"✅ Found batch: {cell_value} in '{sheet_name}' at Column {col_idx+1}")  # Debugging
-
-    if not batch_colors:
-        st.error("❌ No batches detected! Check sheet formatting.")
 
     return batch_colors
+
 
 
 
