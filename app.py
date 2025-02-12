@@ -5,7 +5,7 @@ from extract_timetable import extract_batch_details, get_timetable
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kwr7UiuulxFxDKpM8Q/edit?gid=1882612924#gid=1882612924"
 
 def main():
-    st.title("University Timetable System 📅")
+    st.title("FAST-NUCES FCS Timetable System 📅")
 
     # Fetch real-time data
     sheet = get_google_sheets_data(SHEET_URL)
