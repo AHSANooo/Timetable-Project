@@ -1,39 +1,47 @@
 import gspread
 
 def extract_batch_colors(spreadsheet):
-    """Extract batch names and their corresponding colors from the first four rows."""
-    batch_details = {}  # Store batch names and colors
+    """Extract batch names and their corresponding column indices from the first four rows."""
+    batch_colors = {}
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
     for sheet_name in timetable_sheets:
         try:
             worksheet = spreadsheet.worksheet(sheet_name)
-            data = worksheet.get_all_values()
-            fmt = worksheet.get_format()  # Get cell formatting (color info)
+            data = worksheet.get_all_values()  # Read all values from the sheet
         except gspread.exceptions.WorksheetNotFound:
             continue
 
         if not data or len(data) < 5:
             continue
 
-        for row_idx in range(4):  # Check first 4 rows for batch names
-            for col_idx, cell in enumerate(data[row_idx]):
-                if "BS" in cell:
-                    color = fmt[row_idx][col_idx].get("backgroundColor", None)
-                    batch_details[cell.strip()] = (col_idx, color)  # Store batch name, column index, and color
+        # 🔍 Debug: Print the first 4 rows
+        print(f"\n--- {sheet_name} (First 4 Rows) ---")
+        for row in data[:4]:
+            print(row)
 
-    return batch_details
+        # Loop through row 1-4 to find batch names
+        for row_idx in range(4):
+            for col_idx, cell in enumerate(data[row_idx]):
+                if "BS" in cell and "(" in cell:  # Example: "BS CS (2023)"
+                    batch_colors[cell.strip()] = col_idx  # Store batch name and column index
+
+    # 🔍 Debug: Print extracted batch names
+    print("\nExtracted Batches:", batch_colors)
+
+    return batch_colors
+
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
-    """Extract and filter timetable based on batch, department, and section."""
+    """Extract and filter timetable based on batch and section, including room and lab details."""
 
-    batch_details = extract_batch_colors(spreadsheet)
+    batch_colors = extract_batch_colors(spreadsheet)
 
-    if user_batch not in batch_details:
+    if user_batch not in batch_colors:
         return "Batch not found!"
 
-    batch_column, batch_color = batch_details[user_batch]  # Get column index and color
+    batch_column = batch_colors[user_batch]  # Get column index of requested batch
     output = [f"📅 Timetable for {user_batch}, Section {user_section}:\n"]
 
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -42,40 +50,32 @@ def get_timetable(spreadsheet, user_batch, user_section):
         try:
             worksheet = spreadsheet.worksheet(sheet_name)
             data = worksheet.get_all_values()
-            fmt = worksheet.get_format()  # Get cell formatting (for color matching)
         except gspread.exceptions.WorksheetNotFound:
             continue
 
-        if len(data) < 6:
+        if len(data) < 5:
             continue
 
         section_classes = []
         class_timings = data[4]  # Row 5 contains class timings
-        lab_timings = data[42] if len(data) > 43 else []  # Row 43 contains lab timings
-        room_columns = batch_column - 1  # Room number column
+        room_details = data[3] if len(data) > 3 else ["Unknown"] * len(data[4])  # Row 4 for room numbers
+        lab_details = data[42] if len(data) > 42 else [""] * len(data[4])  # Row 43 for labs
 
-        for row_idx, row in enumerate(data[5:], start=6):  # Start from row 6
+        for row in data[5:]:  # Start from row 6, where classes begin
             if len(row) > batch_column:
                 class_entry = row[batch_column].strip()
 
-                # Ensure this class is for the correct batch by matching the color
-                cell_color = fmt[row_idx][batch_column].get("backgroundColor", None)
-                if cell_color != batch_color:
-                    continue  # Skip if color doesn't match the batch
-
-                # Ensure the class is for the correct section
+                # Check if the class belongs to the requested section
                 if f"({user_section})" in class_entry or f"-{user_section}" in class_entry:
                     class_time = class_timings[batch_column] if batch_column < len(class_timings) else "Unknown Time"
-                    room = row[room_columns] if room_columns >= 0 and len(row) > room_columns else "Unknown Room"
+                    room = room_details[batch_column] if batch_column < len(room_details) else "Unknown Room"
+                    lab = lab_details[batch_column] if batch_column < len(lab_details) and lab_details[
+                        batch_column] else None
 
-                    # Check if it's a lab (row 43 and beyond)
-                    if row_idx >= 43:
-                        class_type = "Lab"
-                        class_time = lab_timings[batch_column] if batch_column < len(lab_timings) else class_time
+                    if lab:
+                        section_classes.append(f"{sheet_name}: {class_time} | Lab: {lab} | {class_entry}")
                     else:
-                        class_type = "Class"
-
-                    section_classes.append(f"{sheet_name}: {class_time} | Room: {room} | {class_type}: {class_entry}")
+                        section_classes.append(f"{sheet_name}: {class_time} | Room: {room} | {class_entry}")
 
         if section_classes:
             output.extend(section_classes)
