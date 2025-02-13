@@ -22,8 +22,8 @@ def main():
         return
 
     # Display available batches for reference
-    st.write("✅ **Available Batches:**")
-    st.json(batch_details)  # Display batch mappings in JSON format
+    #st.write("✅ **Available Batches:**")
+    #st.json(batch_details)  # Display batch mappings in JSON format
 
     # User inputs
     batch = st.text_input("🆔 Enter your batch (e.g., 'BS CS (2023)')").strip()
