@@ -4,38 +4,38 @@ from extract_timetable import extract_batch_columns, get_timetable
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kwr7UiuulxFxDKpM8Q/edit?gid=1882612924"
 
-
 def main():
     st.title("📅 FAST-NUCES FCS Timetable System")
 
-    st.info("Fetching timetable data, please wait...")
-    try:
-        spreadsheet = get_google_sheets_data(SHEET_URL)
-    except Exception as e:
-        st.error(f"Failed to fetch data: {str(e)}")
+    # Fetch full spreadsheet object
+    spreadsheet = get_google_sheets_data(SHEET_URL)
+
+    if not spreadsheet:
+        st.error("❌ Error: Failed to connect to Google Sheets. Check your credentials.")
         return
 
-    batch_columns = extract_batch_columns(spreadsheet)
-    if not batch_columns:
-        st.error("No batches found. Please check the sheet format.")
+    # Extract all batch names correctly
+    batch_details = extract_batch_columns(spreadsheet)
+
+    if not batch_details:
+        st.error("⚠️ No batches found. Please check if the sheet format is correct.")
         return
 
-    batch = st.text_input("Enter your batch (e.g., 'BS CS (2023)')").strip()
-    section = st.text_input("Enter your section (e.g., 'A')").strip().upper()
+    # Display available batches for reference
+    st.write("✅ **Available Batches:**")
+    st.json(batch_details)  # Display batch mappings in JSON format
 
-    if st.button("Show Timetable"):
+    # User inputs
+    batch = st.text_input("🆔 Enter your batch (e.g., 'BS CS (2023)')").strip()
+    section = st.text_input("🔠 Enter your section (e.g., 'A')").strip()
+
+    # Display timetable
+    if st.button("📅 Show Timetable"):
         if not batch or not section:
-            st.warning("Please enter both batch and section.")
-            return
-
-        schedule = get_timetable(spreadsheet, batch, section)
-
-        if "not found" in schedule.lower() or "no classes" in schedule.lower():
-            st.error(schedule)
+            st.warning("⚠️ Please enter both batch and section.")
         else:
-            st.success(f"Timetable for {batch}, Section {section}")
-            st.markdown(f"```\n{schedule}\n```")
-
+            schedule = get_timetable(spreadsheet, batch, section)
+            st.text(schedule)
 
 if __name__ == "__main__":
     main()
