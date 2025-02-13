@@ -1,10 +1,8 @@
 import gspread
 
-
 def extract_batch_colors(spreadsheet):
     """Extract batch names and their corresponding column indices from the first four rows."""
     batch_colors = {}
-
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
     for sheet_name in timetable_sheets:
@@ -17,12 +15,22 @@ def extract_batch_colors(spreadsheet):
         if not data or len(data) < 5:
             continue
 
-        # First 4 rows contain batch names
-        for col_idx, cell in enumerate(data[0]):
-            if "BS" in cell:  # Identify batch names
-                batch_colors[cell] = col_idx  # Store batch name and column index
+        # 🔍 Debug: Print the first 4 rows
+        print(f"\n--- {sheet_name} (First 4 Rows) ---")
+        for row in data[:4]:
+            print(row)
+
+        # Loop through row 1-4 to find batch names
+        for row_idx in range(4):
+            for col_idx, cell in enumerate(data[row_idx]):
+                if "BS" in cell and "(" in cell:  # Example: "BS CS (2023)"
+                    batch_colors[cell.strip()] = col_idx  # Store batch name and column index
+
+    # 🔍 Debug: Print extracted batch names
+    print("\nExtracted Batches:", batch_colors)
 
     return batch_colors
+
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
