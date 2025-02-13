@@ -1,8 +1,20 @@
 import streamlit as st
-from google_sheets import get_google_sheets_data
+import gspread
+from google.oauth2.service_account import Credentials
 from extract_timetable import extract_batch_columns, get_timetable
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kwr7UiuulxFxDKpM8Q/edit?gid=1882612924"
+
+def get_google_sheets_data(sheet_url):
+    """Fetch Google Sheets file as a gspread object."""
+    credentials_dict = st.secrets["google_service_account"]
+    creds = Credentials.from_service_account_info(credentials_dict, scopes=["https://spreadsheets.google.com/feeds",
+                                                                            "https://www.googleapis.com/auth/drive"])
+
+    client = gspread.authorize(creds)
+    sheet = client.open_by_url(sheet_url)
+
+    return sheet
 
 def main():
     st.title("📅 FAST-NUCES FCS Timetable System")
@@ -22,11 +34,11 @@ def main():
         return
 
     # Display available batches for reference
-    #st.write("✅ **Available Batches:**")
-    #st.json(batch_details)  # Display batch mappings in JSON format
+    st.write("✅ **Available Batches:**")
+    st.json(batch_details)  # Display batch mappings in JSON format
 
     # User inputs
-    batch = st.text_input("🆔 Enter your batch (e.g., 'BS CS (2023)')").strip()
+    batch = st.text_input("🆔 Enter your batch (e.g., 'BSCS-1A')").strip()
     section = st.text_input("🔠 Enter your section (e.g., 'A')").strip()
 
     # Display timetable
