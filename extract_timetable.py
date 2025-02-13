@@ -53,3 +53,5 @@ def extract_batch_columns(spreadsheet):
                 })
 
     return batch_entries
+
+
