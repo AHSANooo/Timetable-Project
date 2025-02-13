@@ -1,7 +1,7 @@
 import gspread
 
 def extract_batch_columns(spreadsheet):
-    """Extract batch names along with their column indices, accounting for merged cells."""
+    """Extract batch names along with their column indices, ensuring correct mappings."""
     batch_columns = {}
 
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -23,9 +23,9 @@ def extract_batch_columns(spreadsheet):
             while col_idx < len(row):
                 cell_value = row[col_idx].strip()
                 if "BS" in cell_value:
-                    # Ensure batch spans two columns
-                    if col_idx + 1 < len(row):
-                        batch_columns[cell_value] = (col_idx, col_idx + 1)
+                    # Ensure batch spans three columns (Adjust if different)
+                    if col_idx + 2 < len(row):
+                        batch_columns[cell_value] = (col_idx, col_idx + 2)
                     else:
                         batch_columns[cell_value] = (col_idx, col_idx)  # Handle single-column cases
                 col_idx += 1  # Move to next column
