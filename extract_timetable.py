@@ -53,11 +53,15 @@ def get_timetable(spreadsheet, user_batch, user_section):
         if len(grid_data) < 6:
             continue
 
+        # Extract time slots
+        class_time_row = grid_data[4] if len(grid_data) > 4 else None
+        lab_time_row = grid_data[42] if len(grid_data) > 42 else None
+
         # Process timetable rows (skip headers)
         for row_idx, row in enumerate(grid_data[5:], start=6):
             is_lab = row_idx >= 43  # Lab rows
 
-            # Get room number (first column) safely
+            # Extract room number dynamically
             room = "Unknown"
             row_values = row.get('values', []) if isinstance(row, dict) else []
             if row_values:
@@ -65,11 +69,12 @@ def get_timetable(spreadsheet, user_batch, user_section):
                 room = first_cell.get('formattedValue', 'Unknown').strip()
 
             # Get time slot based on row type
-            time_row = grid_data[4] if not is_lab and len(grid_data) > 4 else grid_data[42] if is_lab and len(grid_data) > 42 else None
             time_slot = "Unknown"
+            time_row = lab_time_row if is_lab else class_time_row
             if time_row:
                 time_values = time_row.get('values', [])
-                time_slot = time_values[0].get('formattedValue', 'Unknown') if time_values else "Unknown"
+                if len(time_values) > row_idx:  # Ensure valid index
+                    time_slot = time_values[row_idx].get('formattedValue', 'Unknown')
 
             # Check all cells in row
             for cell in row_values:
@@ -85,8 +90,12 @@ def get_timetable(spreadsheet, user_batch, user_section):
                     if class_entry and any(p in class_entry for p in [f"({user_section})", f"-{user_section}"]):
                         # Clean class name
                         clean_entry = class_entry.split('(')[0].split('-')[0].strip()
+
+                        # Dynamic label: "Room" or "Lab"
+                        room_or_lab_label = "Lab" if is_lab else "Room"
+
                         entry = (
-                            f"📌 {sheet_name}: {time_slot} | 🏫 Room: {room} | "
+                            f"📌 {sheet_name}: {time_slot} | 🏫 {room_or_lab_label}: {room} | "
                             f"{'Lab' if is_lab else 'Class'}: {clean_entry} \n"
                         )
                         output.append(entry)
