@@ -68,16 +68,8 @@ def get_timetable(spreadsheet, user_batch, user_section):
                 first_cell = row_values[0] if isinstance(row_values[0], dict) else {}
                 room = first_cell.get('formattedValue', 'Unknown').strip()
 
-            # Get time slot based on row type
-            time_slot = "Unknown"
-            time_row = lab_time_row if is_lab else class_time_row
-            if time_row:
-                time_values = time_row.get('values', [])
-                if len(time_values) > row_idx:  # Ensure valid index
-                    time_slot = time_values[row_idx].get('formattedValue', 'Unknown')
-
             # Check all cells in row
-            for cell in row_values:
+            for col_idx, cell in enumerate(row_values):
                 if not isinstance(cell, dict) or 'effectiveFormat' not in cell:
                     continue
 
@@ -91,6 +83,14 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         # Clean class name
                         clean_entry = class_entry.split('(')[0].split('-')[0].strip()
 
+                        # Extract time slot using the column index
+                        time_slot = "Unknown"
+                        time_row = lab_time_row if is_lab else class_time_row
+                        if time_row:
+                            time_values = time_row.get('values', [])
+                            if len(time_values) > col_idx:  # Ensure valid index
+                                time_slot = time_values[col_idx].get('formattedValue', 'Unknown')
+
                         # Dynamic label: "Room" or "Lab"
                         room_or_lab_label = "Lab" if is_lab else "Room"
 
@@ -101,3 +101,4 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         output.append(entry)
 
     return "\n".join(output) if output else "⚠️ No classes found for selected criteria"
+
