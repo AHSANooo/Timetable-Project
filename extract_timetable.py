@@ -22,15 +22,16 @@ def extract_batch_columns(spreadsheet):
 
             while col_idx < len(row):
                 cell_value = row[col_idx].strip()
-                if "BS" in cell_value:
+                if "BS" in cell_value and "(" in cell_value:  # Format: BS SE (2021)
                     if col_idx + 2 < len(row):
                         batch_columns[cell_value] = (col_idx, col_idx + 2)
                     else:
-                        batch_columns[cell_value] = (col_idx, col_idx)  # Handle single-column cases
+                        batch_columns[cell_value] = (col_idx, col_idx)
                 col_idx += 1  # Move to next column
 
     print(f"[DEBUG] Extracted Batch Columns: {batch_columns}")  # Debugging output
     return batch_columns
+
 
 def get_timetable(spreadsheet, user_batch, user_section):
     """Extract timetable ensuring correct batch-column mapping and section filtering."""
@@ -75,11 +76,9 @@ def get_timetable(spreadsheet, user_batch, user_section):
                     else:
                         class_type = "Class"
 
-                    section_classes.append(f"🕒 {class_time} | 🏢 Room: {room} | 📖 {class_type}: {class_entry}")
+                    section_classes.append(f"📌 {sheet_name}: {class_time} | 🏫 Room: {room} | 🏷️ {class_type}: {class_entry}")
 
         if section_classes:
-            output.append(f"📆 **{sheet_name}**")
-            output.extend(section_classes)
-            output.append("")  # Line break for better readability
+            output.append("\n".join(section_classes))
 
     return "\n".join(output) if len(output) > 1 else "⚠️ No classes found for the selected batch and section."
