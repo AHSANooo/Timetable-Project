@@ -3,7 +3,7 @@ def extract_batch_colors(spreadsheet):
     batch_colors = {}
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-    for sheet in spreadsheet['sheets']:
+    for sheet in spreadsheet.get('sheets', []):
         sheet_name = sheet['properties']['title']
         if sheet_name not in timetable_sheets:
             continue
@@ -44,7 +44,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
     output = []
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-    for sheet in spreadsheet['sheets']:
+    for sheet in spreadsheet.get('sheets', []):
         sheet_name = sheet['properties']['title']
         if sheet_name not in timetable_sheets:
             continue
@@ -59,29 +59,25 @@ def get_timetable(spreadsheet, user_batch, user_section):
 
             # Get room number (first column) safely
             room = "Unknown"
-            row_values = row.get('values', [])
+            row_values = row.get('values', []) if isinstance(row, dict) else []
             if row_values:
-                first_cell = row_values[0]
+                first_cell = row_values[0] if isinstance(row_values[0], dict) else {}
                 room = first_cell.get('formattedValue', 'Unknown').strip()
 
             # Get time slot based on row type
-            time_row = None
-            try:
-                time_row = grid_data[4] if not is_lab else grid_data[42]
-            except IndexError:
-                pass
-
+            time_row = grid_data[4] if not is_lab and len(grid_data) > 4 else grid_data[42] if is_lab and len(grid_data) > 42 else None
             time_slot = "Unknown"
-            if time_row and 'values' in time_row and time_row['values']:
-                time_slot = time_row['values'][0].get('formattedValue', 'Unknown')
+            if time_row:
+                time_values = time_row.get('values', [])
+                time_slot = time_values[0].get('formattedValue', 'Unknown') if time_values else "Unknown"
 
             # Check all cells in row
-            for cell in row.get('values', []):
-                if 'effectiveFormat' not in cell:
+            for cell in row_values:
+                if not isinstance(cell, dict) or 'effectiveFormat' not in cell:
                     continue
 
                 # Get cell color
-                color = cell['effectiveFormat']['backgroundColor']
+                color = cell.get('effectiveFormat', {}).get('backgroundColor', {})
                 cell_color = f"{color.get('red', 0):.2f}{color.get('green', 0):.2f}{color.get('blue', 0):.2f}"
 
                 if cell_color == target_color:
