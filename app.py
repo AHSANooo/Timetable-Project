@@ -45,9 +45,9 @@ def main():
         return
 
     # Display available batches
-    #st.write("✅ **Available Batches:**")
-    #for batch in batch_colors.values():
-        st.write(f"- {batch}")
+    st.write("✅ **Available Batches:**")
+    # Display available batches in a dropdown
+    selected_batch = st.selectbox("✅ **Select Your Batch:**", list(batch_colors.values()))
 
     # User inputs
     batch = st.text_input("🆔 Enter your batch (e.g., 'BS CS (2023)')").strip()
