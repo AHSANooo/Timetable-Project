@@ -44,14 +44,16 @@ def main():
         st.error("⚠️ No batches found. Check sheet format.")
         return
 
-    # Dropdown for batch selection
+    # Dropdown for batch selection (No typing allowed)
     batch_list = list(batch_colors.values())
     batch = st.radio("✅ **Select Your Batch and Department:**", batch_list, index=None)
 
-    # User input for section
-    section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
+    # 📝 Wrap inputs inside a form (removes 'Press Enter' message)
+    with st.form("timetable_form"):
+        section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
+        submit_button = st.form_submit_button("📅 Show Timetable")
 
-    if st.button("📅 Show Timetable"):
+    if submit_button:
         if not batch or not section:
             st.warning("⚠️ Please enter both fields")
             return
@@ -62,6 +64,7 @@ def main():
         else:
             st.markdown(f"**Timetable for {batch}, Section {section}:**")
             st.write(schedule)
+
 
 
 if __name__ == "__main__":
