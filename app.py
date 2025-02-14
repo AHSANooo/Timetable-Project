@@ -8,10 +8,8 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kw
 def get_google_sheets_data(sheet_url):
     """Fetch Google Sheets file as a gspread object."""
     credentials_dict = st.secrets["google_service_account"]
-    creds = Credentials.from_service_account_info(credentials_dict, scopes=[
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ])
+    creds = Credentials.from_service_account_info(credentials_dict, scopes=["https://spreadsheets.google.com/feeds",
+                                                                            "https://www.googleapis.com/auth/drive"])
 
     client = gspread.authorize(creds)
     sheet = client.open_by_url(sheet_url)
@@ -21,24 +19,27 @@ def get_google_sheets_data(sheet_url):
 def main():
     st.title("📅 FAST-NUCES FCS Timetable System")
 
-    # Fetch spreadsheet
+    # Fetch full spreadsheet object
     spreadsheet = get_google_sheets_data(SHEET_URL)
+
     if not spreadsheet:
-        st.error("❌ Error: Failed to connect to Google Sheets. Check credentials.")
+        st.error("❌ Error: Failed to connect to Google Sheets. Check your credentials.")
         return
 
-    # Extract batch mappings
+    # Extract all batch names correctly
     batch_details = extract_batch_columns(spreadsheet)
+
     if not batch_details:
         st.error("⚠️ No batches found. Please check if the sheet format is correct.")
         return
 
-    # Display available batches
+    # Display available batches for reference
     st.write("✅ **Available Batches:**")
-    st.json(batch_details)
+    for batch in batch_details.keys():
+        st.write(f"- {batch}")
 
     # User inputs
-    batch = st.text_input("🆔 Enter your batch (e.g., 'BSCS-1A')").strip()
+    batch = st.text_input("🆔 Enter your batch (e.g., 'BS SE (2021)')").strip()
     section = st.text_input("🔠 Enter your section (e.g., 'A')").strip()
 
     # Display timetable
@@ -47,10 +48,7 @@ def main():
             st.warning("⚠️ Please enter both batch and section.")
         else:
             schedule = get_timetable(spreadsheet, batch, section)
-            if "⚠️" in schedule:
-                st.warning(schedule)
-            else:
-                st.text(schedule)
+            st.text(schedule)
 
 if __name__ == "__main__":
     main()
