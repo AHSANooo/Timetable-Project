@@ -46,7 +46,7 @@ def main():
 
     # Dropdown for batch selection
     batch_list = list(batch_colors.values())
-    batch = st.selectbox("✅ **Select Your Batch:**", batch_list)
+    batch = st.radio("✅ **Select Your Batch:**", batch_list, index=None)
 
     # User input for section
     section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
