@@ -30,7 +30,7 @@ def main():
     st.title("📅 FAST-NUCES FCS Timetable System")
 
     # Fetch full spreadsheet data
-    st.info("Data Fetched from Timetable")
+    st.info("Fetched the data from Timetable.")
     try:
         spreadsheet = get_google_sheets_data(SHEET_URL)
     except Exception as e:
