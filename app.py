@@ -44,13 +44,11 @@ def main():
         st.error("⚠️ No batches found. Check sheet format.")
         return
 
-    # Display available batches
-    st.write("✅ **Available Batches:**")
-    # Display available batches in a dropdown
-    selected_batch = st.selectbox("✅ **Select Your Batch:**", list(batch_colors.values()))
+    # Dropdown for batch selection
+    batch_list = list(batch_colors.values())
+    batch = st.selectbox("✅ **Select Your Batch:**", batch_list)
 
-    # User inputs
-    batch = st.text_input("🆔 Enter your batch (e.g., 'BS CS (2023)')").strip()
+    # User input for section
     section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
 
     if st.button("📅 Show Timetable"):
