@@ -53,13 +53,21 @@ def get_timetable(spreadsheet, user_batch, user_section):
         if len(grid_data) < 6:
             continue
 
-        # Extract time slots
+        # Extract class timings (Row 5)
         class_time_row = grid_data[4] if len(grid_data) > 4 else None
-        lab_time_row = grid_data[42] if len(grid_data) > 42 else None
+
+        # Detect the correct lab row dynamically
+        lab_time_row_index = 42  # Default to row 42
+        for i in range(41, 45):  # Search within a small range
+            if i < len(grid_data) and "Lab" in str(grid_data[i].get('values', [{}])[0].get('formattedValue', '')):
+                lab_time_row_index = i
+                break
+
+        lab_time_row = grid_data[lab_time_row_index] if len(grid_data) > lab_time_row_index else None
 
         # Process timetable rows (skip headers)
         for row_idx, row in enumerate(grid_data[5:], start=6):
-            is_lab = row_idx >= 43  # Lab rows
+            is_lab = row_idx >= lab_time_row_index + 1  # Lab rows start after detected lab timings row
 
             # Extract room number dynamically
             room = "Unknown"
@@ -101,4 +109,5 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         output.append(entry)
 
     return "\n".join(output) if output else "⚠️ No classes found for selected criteria"
+
 
