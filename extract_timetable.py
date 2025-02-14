@@ -28,7 +28,7 @@ def extract_batch_colors(spreadsheet):
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
-    """Generate timetable using color-based matching"""
+    """Generate timetable using color-based matching and return formatted output"""
     batch_colors = extract_batch_colors(spreadsheet)
 
     # Find target color for user's batch
@@ -41,7 +41,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
     if not target_color:
         return f"⚠️ Batch '{user_batch}' not found!"
 
-    output = []
+    timetable = {}
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
     for sheet in spreadsheet.get('sheets', []):
@@ -67,14 +67,11 @@ def get_timetable(spreadsheet, user_batch, user_section):
 
         # Process timetable rows (skip headers)
         for row_idx, row in enumerate(grid_data[5:], start=6):
-            is_lab = row_idx >= lab_time_row_index + 1  # Lab rows start after detected lab timings row
+            is_lab = row_idx >= lab_time_row_index + 1  # Labs start after detected lab row
 
             # Extract room number dynamically
-            room = "Unknown"
             row_values = row.get('values', []) if isinstance(row, dict) else []
-            if row_values:
-                first_cell = row_values[0] if isinstance(row_values[0], dict) else {}
-                room = first_cell.get('formattedValue', 'Unknown').strip()
+            room = row_values[0].get('formattedValue', 'Unknown').strip() if row_values else "Unknown"
 
             # Check all cells in row
             for col_idx, cell in enumerate(row_values):
@@ -91,23 +88,28 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         # Clean class name
                         clean_entry = class_entry.split('(')[0].split('-')[0].strip()
 
-                        # Extract time slot using the column index
-                        time_slot = "Unknown"
+                        # Extract time slot
                         time_row = lab_time_row if is_lab else class_time_row
+                        time_slot = "Unknown"
                         if time_row:
                             time_values = time_row.get('values', [])
-                            if len(time_values) > col_idx:  # Ensure valid index
+                            if len(time_values) > col_idx:
                                 time_slot = time_values[col_idx].get('formattedValue', 'Unknown')
 
-                        # Dynamic label: "Room" or "Lab"
-                        room_or_lab_label = "Lab" if is_lab else "Room"
+                        # Store in dictionary (group by day)
+                        if sheet_name not in timetable:
+                            timetable[sheet_name] = []
 
-                        entry = (
-                            f"📌 {sheet_name}: {time_slot} | 🏫 {room_or_lab_label}: {room} | "
-                            f"{'Lab' if is_lab else 'Class'}: {clean_entry} \n"
-                        )
-                        output.append(entry)
+                        timetable[sheet_name].append((time_slot, room, "Lab" if is_lab else "Class", clean_entry))
+
+    # Format output as a Markdown table
+    output = []
+    for day, sessions in timetable.items():
+        output.append(f"### 📌 {day}\n")
+        output.append("| Time | Room | Type | Course |")
+        output.append("|------|------|------|--------|")
+        for time_slot, room, session_type, course in sorted(sessions):
+            output.append(f"| {time_slot} | {room} | {session_type} | {course} |")
+        output.append("\n")
 
     return "\n".join(output) if output else "⚠️ No classes found for selected criteria"
-
-
