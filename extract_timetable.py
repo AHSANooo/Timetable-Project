@@ -87,7 +87,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         clean_entry = class_entry.split('(')[0].split('-')[0].strip()
                         entry = (
                             f"📌 {sheet_name}: {time_slot} | 🏫 Room: {room} | "
-                            f"{'Lab' if is_lab else 'Class'}: {clean_entry}"
+                            f"{'Lab' if is_lab else 'Class'}: {clean_entry} \n"
                         )
                         output.append(entry)
 

@@ -45,8 +45,8 @@ def main():
         return
 
     # Display available batches
-    st.write("✅ **Available Batches:**")
-    for batch in batch_colors.values():
+    #st.write("✅ **Available Batches:**")
+    #for batch in batch_colors.values():
         st.write(f"- {batch}")
 
     # User inputs
