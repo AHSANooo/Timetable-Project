@@ -30,11 +30,20 @@ def extract_batch_colors(spreadsheet):
 
 
 def parse_time_slot(time_slot):
-    """Convert a time slot string to a sortable datetime object."""
-    try:
-        return datetime.strptime(time_slot, "%I:%M %p")  # Format: "HH:MM AM/PM"
-    except ValueError:
-        return datetime.max  # Assign a max value if parsing fails (ensures unrecognized times go last)
+    """Extracts the start time from a given time slot string and converts it to a sortable datetime object."""
+    if time_slot == "Unknown":
+        return datetime.max  # Place unknown times at the end
+
+    # Handle formats like "08:30-09:50"
+    time_parts = time_slot.split('-')
+    if len(time_parts) > 0:
+        first_time = time_parts[0].strip()  # Extract first time part
+        try:
+            return datetime.strptime(first_time, "%I:%M")  # Convert to datetime
+        except ValueError:
+            pass  # Continue if parsing fails
+
+    return datetime.max  # Default to max if parsing fails
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
@@ -115,8 +124,8 @@ def get_timetable(spreadsheet, user_batch, user_section):
         output.append("| Time | Room | Type | Course |")
         output.append("|------|------|------|--------|")
 
-        # Sort sessions by start time before displaying
-        for _, time_slot, room, session_type, course in sorted(sessions):
+        # Sort sessions by extracted start time before displaying
+        for _, time_slot, room, session_type, course in sorted(sessions, key=lambda x: x[0]):
             output.append(f"| {time_slot} | {room} | {session_type} | {course} |")
         output.append("\n")
 
