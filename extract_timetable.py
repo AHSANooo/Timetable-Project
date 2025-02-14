@@ -1,3 +1,5 @@
+from datetime import datetime
+
 def extract_batch_colors(spreadsheet):
     """Extract batch-color mappings from spreadsheet"""
     batch_colors = {}
@@ -27,16 +29,20 @@ def extract_batch_colors(spreadsheet):
     return batch_colors
 
 
+def parse_time_slot(time_slot):
+    """Convert a time slot string to a sortable datetime object."""
+    try:
+        return datetime.strptime(time_slot, "%I:%M %p")  # Format: "HH:MM AM/PM"
+    except ValueError:
+        return datetime.max  # Assign a max value if parsing fails (ensures unrecognized times go last)
+
+
 def get_timetable(spreadsheet, user_batch, user_section):
     """Generate timetable using color-based matching and return formatted output"""
     batch_colors = extract_batch_colors(spreadsheet)
 
     # Find target color for user's batch
-    target_color = None
-    for color, batch in batch_colors.items():
-        if user_batch == batch:
-            target_color = color
-            break
+    target_color = next((color for color, batch in batch_colors.items() if batch == user_batch), None)
 
     if not target_color:
         return f"⚠️ Batch '{user_batch}' not found!"
@@ -100,7 +106,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         if sheet_name not in timetable:
                             timetable[sheet_name] = []
 
-                        timetable[sheet_name].append((time_slot, room, "Lab" if is_lab else "Class", clean_entry))
+                        timetable[sheet_name].append((parse_time_slot(time_slot), time_slot, room, "Lab" if is_lab else "Class", clean_entry))
 
     # Format output as a Markdown table
     output = []
@@ -108,7 +114,9 @@ def get_timetable(spreadsheet, user_batch, user_section):
         output.append(f"### 📌 {day}\n")
         output.append("| Time | Room | Type | Course |")
         output.append("|------|------|------|--------|")
-        for time_slot, room, session_type, course in sorted(sessions):
+
+        # Sort sessions by start time before displaying
+        for _, time_slot, room, session_type, course in sorted(sessions):
             output.append(f"| {time_slot} | {room} | {session_type} | {course} |")
         output.append("\n")
 
