@@ -1,84 +1,86 @@
-import gspread
-
-def extract_batch_columns(spreadsheet):
-    """Extract batch names along with their column indices, ensuring correct mappings."""
-    batch_columns = {}
-
+# FILE 2: extract_timetable.py
+def extract_batch_colors(spreadsheet):
+    """Extract batch-color mappings from spreadsheet"""
+    batch_colors = {}
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-    for sheet_name in timetable_sheets:
-        try:
-            worksheet = spreadsheet.worksheet(sheet_name)
-            data = worksheet.get_all_values()
-        except gspread.exceptions.WorksheetNotFound:
+    for sheet in spreadsheet['sheets']:
+        sheet_name = sheet['properties']['title']
+        if sheet_name not in timetable_sheets:
             continue
 
-        if not data or len(data) < 5:
-            continue
+        grid_data = sheet['data'][0]['rowData']
 
-        for row_idx in range(4):  # Scan first 4 rows for batch names
-            row = data[row_idx]
-            col_idx = 0
+        # Check first 4 rows (0-indexed)
+        for row_idx in range(4):
+            if row_idx >= len(grid_data):
+                continue
 
-            while col_idx < len(row):
-                cell_value = row[col_idx].strip()
-                if "BS" in cell_value and "(" in cell_value:  # Format: BS SE (2021)
-                    if col_idx + 2 < len(row):
-                        batch_columns[cell_value] = (col_idx, col_idx + 2)
-                    else:
-                        batch_columns[cell_value] = (col_idx, col_idx)
-                col_idx += 1  # Move to next column
+            row_data = grid_data[row_idx]['values']
+            for cell_idx, cell in enumerate(row_data):
+                if 'formattedValue' in cell and 'BS' in cell['formattedValue']:
+                    # Get background color
+                    color = cell.get('effectiveFormat', {}).get('backgroundColor', {})
+                    # Convert color to hex string
+                    color_hex = f"{color.get('red', 0):.2f}{color.get('green', 0):.2f}{color.get('blue', 0):.2f}"
+                    batch_colors[color_hex] = cell['formattedValue'].strip()
 
-    print(f"[DEBUG] Extracted Batch Columns: {batch_columns}")  # Debugging output
-    return batch_columns
+    return batch_colors
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
-    """Extract timetable ensuring correct batch-column mapping and section filtering."""
-    batch_columns = extract_batch_columns(spreadsheet)
+    """Generate timetable using color-based matching"""
+    batch_colors = extract_batch_colors(spreadsheet)
 
-    if user_batch not in batch_columns:
-        return f"⚠️ Batch '{user_batch}' not found! Please enter a valid batch."
+    # Find target color for user's batch
+    target_color = None
+    for color, batch in batch_colors.items():
+        if user_batch == batch:
+            target_color = color
+            break
 
-    batch_col_start, batch_col_end = batch_columns[user_batch]
-    output = [f"📅 **Timetable for {user_batch}, Section {user_section}:**\n"]
+    if not target_color:
+        return f"⚠️ Batch '{user_batch}' not found!"
 
+    output = []
     timetable_sheets = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-    for sheet_name in timetable_sheets:
-        try:
-            worksheet = spreadsheet.worksheet(sheet_name)
-            data = worksheet.get_all_values()
-        except gspread.exceptions.WorksheetNotFound:
+    for sheet in spreadsheet['sheets']:
+        sheet_name = sheet['properties']['title']
+        if sheet_name not in timetable_sheets:
             continue
 
-        if len(data) < 6:
+        grid_data = sheet['data'][0]['rowData']
+        if len(grid_data) < 6:
             continue
 
-        section_classes = []
-        class_timings = data[4]  # Row 5 contains class timings
-        lab_timings = data[42] if len(data) > 43 else []  # Row 43 contains lab timings
-        room_column = batch_col_start - 1  # Room numbers column is before batch start
+        # Process timetable rows (skip headers)
+        for row_idx, row in enumerate(grid_data[5:], start=6):
+            is_lab = row_idx >= 43  # Lab rows
 
-        for row_idx, row in enumerate(data[5:], start=6):  # Start from row 6
-            if len(row) > batch_col_end:
-                class_entry = " ".join(row[batch_col_start:batch_col_end + 1]).strip()
+            # Get room number (first column)
+            room = row['values'][0]['formattedValue'] if 'values' in row and len(row['values']) > 0 else "Unknown"
 
-                # Verify the subject belongs to the requested section
-                if f"({user_section})" in class_entry or f"-{user_section}" in class_entry:
-                    class_time = class_timings[batch_col_start] if batch_col_start < len(class_timings) else "Unknown Time"
-                    room = row[room_column] if room_column >= 0 and len(row) > room_column else "Unknown Room"
+            # Get time slot based on row type
+            time_row = grid_data[4] if not is_lab else grid_data[42]
+            time_slot = time_row['values'][0]['formattedValue'] if 'values' in time_row else "Unknown"
 
-                    # Check if it's a lab (Row 43 and beyond)
-                    if row_idx >= 43:
-                        class_type = "Lab"
-                        class_time = lab_timings[batch_col_start] if batch_col_start < len(lab_timings) else class_time
-                    else:
-                        class_type = "Class"
+            # Check all cells in row
+            for cell_idx, cell in enumerate(row.get('values', [])):
+                if 'effectiveFormat' not in cell:
+                    continue
 
-                    section_classes.append(f"📌 {sheet_name}: {class_time} | 🏫 Room: {room} | 🏷️ {class_type}: {class_entry}")
+                # Get cell color
+                color = cell['effectiveFormat']['backgroundColor']
+                cell_color = f"{color.get('red', 0):.2f}{color.get('green', 0):.2f}{color.get('blue', 0):.2f}"
 
-        if section_classes:
-            output.append("\n".join(section_classes))
+                if cell_color == target_color:
+                    class_entry = cell.get('formattedValue', '')
+                    if class_entry and any(p in class_entry for p in [f"({user_section})", f"-{user_section}"]):
+                        entry = (
+                            f"📌 {sheet_name}: {time_slot} | 🏫 Room: {room} | "
+                            f"{'Lab' if is_lab else 'Class'}: {class_entry.split('(')[0].strip()}"
+                        )
+                        output.append(entry)
 
-    return "\n".join(output) if len(output) > 1 else "⚠️ No classes found for the selected batch and section."
+    return "\n".join(output) if output else "⚠️ No classes found for selected criteria"

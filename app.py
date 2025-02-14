@@ -1,54 +1,71 @@
+# FILE 1: app.py
 import streamlit as st
-import gspread
 from google.oauth2.service_account import Credentials
-from extract_timetable import extract_batch_columns, get_timetable
+from googleapiclient.discovery import build
+from extract_timetable import extract_batch_colors, get_timetable
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kwr7UiuulxFxDKpM8Q/edit?gid=1882612924"
 
+
 def get_google_sheets_data(sheet_url):
-    """Fetch Google Sheets file as a gspread object."""
+    """Fetch Google Sheets data with formatting using Sheets API v4"""
     credentials_dict = st.secrets["google_service_account"]
-    creds = Credentials.from_service_account_info(credentials_dict, scopes=["https://spreadsheets.google.com/feeds",
-                                                                            "https://www.googleapis.com/auth/drive"])
+    creds = Credentials.from_service_account_info(
+        credentials_dict,
+        scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
+    )
 
-    client = gspread.authorize(creds)
-    sheet = client.open_by_url(sheet_url)
+    service = build('sheets', 'v4', credentials=creds)
+    spreadsheet_id = sheet_url.split('/d/')[1].split('/')[0]
 
-    return sheet
+    # Get spreadsheet with cell formatting
+    spreadsheet = service.spreadsheets().get(
+        spreadsheetId=spreadsheet_id,
+        includeGridData=True
+    ).execute()
+
+    return spreadsheet
+
 
 def main():
     st.title("📅 FAST-NUCES FCS Timetable System")
 
-    # Fetch full spreadsheet object
-    spreadsheet = get_google_sheets_data(SHEET_URL)
-
-    if not spreadsheet:
-        st.error("❌ Error: Failed to connect to Google Sheets. Check your credentials.")
+    # Fetch full spreadsheet data
+    st.info("Fetching timetable data...")
+    try:
+        spreadsheet = get_google_sheets_data(SHEET_URL)
+    except Exception as e:
+        st.error(f"❌ Connection failed: {str(e)}")
         return
 
-    # Extract all batch names correctly
-    batch_details = extract_batch_columns(spreadsheet)
+    # Extract batch-color mappings
+    batch_colors = extract_batch_colors(spreadsheet)
 
-    if not batch_details:
-        st.error("⚠️ No batches found. Please check if the sheet format is correct.")
+    if not batch_colors:
+        st.error("⚠️ No batches found. Check sheet format.")
         return
 
-    # Display available batches for reference
+    # Display available batches
     st.write("✅ **Available Batches:**")
-    for batch in batch_details.keys():
+    for batch in batch_colors.values():
         st.write(f"- {batch}")
 
     # User inputs
-    batch = st.text_input("🆔 Enter your batch (e.g., 'BS SE (2021)')").strip()
-    section = st.text_input("🔠 Enter your section (e.g., 'A')").strip()
+    batch = st.text_input("🆔 Enter your batch (e.g., 'BS CS (2023)')").strip()
+    section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
 
-    # Display timetable
     if st.button("📅 Show Timetable"):
         if not batch or not section:
-            st.warning("⚠️ Please enter both batch and section.")
+            st.warning("⚠️ Please enter both fields")
+            return
+
+        schedule = get_timetable(spreadsheet, batch, section)
+        if schedule.startswith("⚠️"):
+            st.error(schedule)
         else:
-            schedule = get_timetable(spreadsheet, batch, section)
-            st.text(schedule)
+            st.markdown(f"**Timetable for {batch}, Section {section}:**")
+            st.write(schedule)
+
 
 if __name__ == "__main__":
     main()
