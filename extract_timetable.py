@@ -1,4 +1,3 @@
-# FILE 2: extract_timetable.py
 def extract_batch_colors(spreadsheet):
     """Extract batch-color mappings from spreadsheet"""
     batch_colors = {}
@@ -9,15 +8,15 @@ def extract_batch_colors(spreadsheet):
         if sheet_name not in timetable_sheets:
             continue
 
-        grid_data = sheet['data'][0]['rowData']
+        grid_data = sheet.get('data', [{}])[0].get('rowData', [])
 
         # Check first 4 rows (0-indexed)
         for row_idx in range(4):
             if row_idx >= len(grid_data):
                 continue
 
-            row_data = grid_data[row_idx]['values']
-            for cell_idx, cell in enumerate(row_data):
+            row_data = grid_data[row_idx].get('values', [])
+            for cell in row_data:
                 if 'formattedValue' in cell and 'BS' in cell['formattedValue']:
                     # Get background color
                     color = cell.get('effectiveFormat', {}).get('backgroundColor', {})
@@ -50,7 +49,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
         if sheet_name not in timetable_sheets:
             continue
 
-        grid_data = sheet['data'][0]['rowData']
+        grid_data = sheet.get('data', [{}])[0].get('rowData', [])
         if len(grid_data) < 6:
             continue
 
@@ -58,15 +57,26 @@ def get_timetable(spreadsheet, user_batch, user_section):
         for row_idx, row in enumerate(grid_data[5:], start=6):
             is_lab = row_idx >= 43  # Lab rows
 
-            # Get room number (first column)
-            room = row['values'][0]['formattedValue'] if 'values' in row and len(row['values']) > 0 else "Unknown"
+            # Get room number (first column) safely
+            room = "Unknown"
+            row_values = row.get('values', [])
+            if row_values:
+                first_cell = row_values[0]
+                room = first_cell.get('formattedValue', 'Unknown').strip()
 
             # Get time slot based on row type
-            time_row = grid_data[4] if not is_lab else grid_data[42]
-            time_slot = time_row['values'][0]['formattedValue'] if 'values' in time_row else "Unknown"
+            time_row = None
+            try:
+                time_row = grid_data[4] if not is_lab else grid_data[42]
+            except IndexError:
+                pass
+
+            time_slot = "Unknown"
+            if time_row and 'values' in time_row and time_row['values']:
+                time_slot = time_row['values'][0].get('formattedValue', 'Unknown')
 
             # Check all cells in row
-            for cell_idx, cell in enumerate(row.get('values', [])):
+            for cell in row.get('values', []):
                 if 'effectiveFormat' not in cell:
                     continue
 
@@ -77,9 +87,11 @@ def get_timetable(spreadsheet, user_batch, user_section):
                 if cell_color == target_color:
                     class_entry = cell.get('formattedValue', '')
                     if class_entry and any(p in class_entry for p in [f"({user_section})", f"-{user_section}"]):
+                        # Clean class name
+                        clean_entry = class_entry.split('(')[0].split('-')[0].strip()
                         entry = (
                             f"📌 {sheet_name}: {time_slot} | 🏫 Room: {room} | "
-                            f"{'Lab' if is_lab else 'Class'}: {class_entry.split('(')[0].strip()}"
+                            f"{'Lab' if is_lab else 'Class'}: {clean_entry}"
                         )
                         output.append(entry)
 
