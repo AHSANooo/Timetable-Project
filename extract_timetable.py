@@ -34,16 +34,17 @@ def parse_time_slot(time_slot):
     if time_slot == "Unknown":
         return datetime.max  # Place unknown times at the end
 
-    # Handle formats like "08:30-09:50"
+    # Handle formats like "08:30-09:50 AM"
     time_parts = time_slot.split('-')
-    if len(time_parts) > 0:
+    if time_parts:
         first_time = time_parts[0].strip()  # Extract first time part
         try:
-            return datetime.strptime(first_time, "%I:%M")  # Convert to datetime
+            return datetime.strptime(first_time, "%I:%M %p")  # Convert to datetime with AM/PM
         except ValueError:
             pass  # Continue if parsing fails
 
     return datetime.max  # Default to max if parsing fails
+
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
