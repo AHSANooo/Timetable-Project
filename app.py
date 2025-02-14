@@ -30,7 +30,7 @@ def main():
     st.title("📅 FAST-NUCES FCS Timetable System")
 
     # Fetch full spreadsheet data
-    st.info("Fetched the data from Timetable.")
+    st.info("📥 Data has been Fetched Successfully ")
     try:
         spreadsheet = get_google_sheets_data(SHEET_URL)
     except Exception as e:
@@ -41,32 +41,31 @@ def main():
     batch_colors = extract_batch_colors(spreadsheet)
 
     if not batch_colors:
-        st.error("⚠️ No batches found. Check sheet format.")
+        st.error("⚠️ No batches found. Please check the sheet format.")
         return
 
-    # Dropdown for batch selection (Collapsible)
+    # Dropdown for batch selection
     batch_list = list(batch_colors.values())
 
     with st.expander("✅ **Select Your Batch and Department:**"):
         batch = st.radio("Select your batch:", batch_list, index=None)
 
-    # User input for section (No 'Press Enter' message)
+    # User input for section
     section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
 
-    # Submit button (NO FORM = No "Press Enter" message)
+    # Submit button
     if st.button("📅 Show Timetable"):
         if not batch or not section:
-            st.warning("⚠️ Please enter both fields")
+            st.warning("⚠️ Please enter both batch and section.")
             return
 
         schedule = get_timetable(spreadsheet, batch, section)
+
         if schedule.startswith("⚠️"):
             st.error(schedule)
         else:
-            st.markdown(f"**Timetable for {batch}, Section {section}:**")
-            st.write(schedule)
-
-
+            st.markdown(f"## 📅 Timetable for **{batch}, Section {section}**")
+            st.markdown(schedule)
 
 
 if __name__ == "__main__":
