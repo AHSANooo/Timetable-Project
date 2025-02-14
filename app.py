@@ -70,3 +70,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    # Footer with support contact
+    st.markdown("---")
+    st.markdown("📧 **For any issues or support, please contact:** [i230553@isb.nu.pk](mailto:i230553@isb.nu.pk)")
