@@ -73,4 +73,4 @@ if __name__ == "__main__":
 
     # Footer with support contact
     st.markdown("---")
-    st.markdown("📧 **For any issues or support, please contact:** [i230553@isb.nu.pk](mailto:i230553@isb.nu.pk)")
+    st.markdown("📧 **For any issues or support, please contact:** [i230553@isb.nu.edu.pk](mailto:i230553@isb.nu.edu.pk)")
