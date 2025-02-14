@@ -48,12 +48,11 @@ def main():
     batch_list = list(batch_colors.values())
     batch = st.radio("✅ **Select Your Batch and Department:**", batch_list, index=None)
 
-    # 📝 Wrap inputs inside a form (removes 'Press Enter' message)
-    with st.form("timetable_form"):
-        section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
-        submit_button = st.form_submit_button("📅 Show Timetable")
+    # User input for section (No 'Press Enter' message)
+    section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
 
-    if submit_button:
+    # Submit button (NO FORM = No "Press Enter" message)
+    if st.button("📅 Show Timetable"):
         if not batch or not section:
             st.warning("⚠️ Please enter both fields")
             return
