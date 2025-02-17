@@ -71,6 +71,9 @@ def main():
 if __name__ == "__main__":
     main()
 
-    # Footer with support contact
+    # Footer with support contact and LinkedIn profile
     st.markdown("---")
     st.markdown("📧 **For any issues or support, please contact:** [i230553@isb.nu.edu.pk](mailto:i230553@isb.nu.edu.pk)")
+
+    st.markdown("🔗 **Connect with me on LinkedIn:** [Muhammad Ahsan](https://www.linkedin.com/in/muhammad-ahsan-7612701a7)")
+
