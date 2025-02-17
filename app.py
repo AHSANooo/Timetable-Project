@@ -27,7 +27,7 @@ def get_google_sheets_data(sheet_url):
 
 
 def main():
-    st.title("📅 FAST-NUCES FCS Timetable System")
+    st.title("FAST-NUCES FCS Timetable System")
 
     # Fetch full spreadsheet data
     st.info("📥 Data has been Fetched Successfully ")
@@ -54,7 +54,7 @@ def main():
     section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
 
     # Submit button
-    if st.button("📅 Show Timetable"):
+    if st.button("Show Timetable"):
         if not batch or not section:
             st.warning("⚠️ Please enter both batch and section.")
             return
@@ -64,7 +64,7 @@ def main():
         if schedule.startswith("⚠️"):
             st.error(schedule)
         else:
-            st.markdown(f"## 📅 Timetable for **{batch}, Section {section}**")
+            st.markdown(f"## Timetable for **{batch}, Section {section}**")
             st.markdown(schedule)
 
 
