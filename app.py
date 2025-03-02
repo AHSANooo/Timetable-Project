@@ -3,7 +3,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from extract_timetable import extract_batch_colors, get_timetable
 
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kwr7UiuulxFxDKpM8Q/edit?gid=1882612924"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1LP3rof0_h311OND_lvjUaoPbY1ncO4hwDU-4ctr1KHo/edit?usp=drivesdk"
 
 
 def get_google_sheets_data(sheet_url):
@@ -30,7 +30,7 @@ def main():
     st.title("FAST-NUCES FCS Timetable System")
 
     # Fetch full spreadsheet data
-    st.info("📥 Data has been Fetched Successfully ")
+    st.info("Ramadan Mubarak ☪")
     try:
         spreadsheet = get_google_sheets_data(SHEET_URL)
     except Exception as e:
