@@ -72,18 +72,25 @@ def get_timetable(spreadsheet, user_batch, user_section):
         # Extract class timings (Row 5)
         class_time_row = grid_data[4] if len(grid_data) > 4 else None
 
-        # Detect the correct lab row dynamically
-        lab_time_row_index = 63  # Default to row 63
-        for i in range(62, 81):  # Search within a small range
-            if i < len(grid_data) and "Lab" in str(grid_data[i].get('values', [{}])[0].get('formattedValue', '')):
-                lab_time_row_index = i
-                break
-
-        lab_time_row = grid_data[lab_time_row_index] if len(grid_data) > lab_time_row_index else None
+        # Detect the correct lab row dynamically by searching for 'Lab' in first column
+        lab_time_row_index = None
+        lab_time_row = None
+        
+        # Search through all rows to find the one containing 'Lab' in the first column
+        for i in range(len(grid_data)):
+            row_values = grid_data[i].get('values', [])
+            if row_values:
+                first_cell_value = row_values[0].get('formattedValue', '').strip()
+                if 'Lab' in first_cell_value:
+                    lab_time_row_index = i
+                    lab_time_row = grid_data[i]
+                    break
 
         # Process timetable rows (skip headers)
         for row_idx, row in enumerate(grid_data[5:], start=6):
-            is_lab = row_idx >= lab_time_row_index + 1  # Labs start after detected lab row
+            # Determine if this is a lab row based on whether we found a lab timing row
+            # and if the current row is after the lab timing row
+            is_lab = lab_time_row_index is not None and row_idx >= lab_time_row_index + 1
 
             # Extract room number dynamically
             row_values = row.get('values', []) if isinstance(row, dict) else []
@@ -105,7 +112,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         clean_entry = class_entry.split('(')[0].split('-')[0].strip()
 
                         # Extract time slot
-                        time_row = lab_time_row if is_lab else class_time_row
+                        time_row = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
                         time_slot = "Unknown"
                         if time_row:
                             time_values = time_row.get('values', [])
