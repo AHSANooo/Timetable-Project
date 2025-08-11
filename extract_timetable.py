@@ -73,8 +73,8 @@ def get_timetable(spreadsheet, user_batch, user_section):
         class_time_row = grid_data[4] if len(grid_data) > 4 else None
 
         # Detect the correct lab row dynamically
-        lab_time_row_index = 64  # Default to row 63
-        for i in range(63, 81):  # Search within a small range
+        lab_time_row_index = 63  # Default to row 63
+        for i in range(62, 81):  # Search within a small range
             if i < len(grid_data) and "Lab" in str(grid_data[i].get('values', [{}])[0].get('formattedValue', '')):
                 lab_time_row_index = i
                 break
