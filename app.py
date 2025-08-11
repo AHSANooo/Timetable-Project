@@ -3,7 +3,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from extract_timetable import extract_batch_colors, get_timetable
 
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1dk0Raaf9gtbSdoMAGZal3y4m1kwr7UiuulxFxDKpM8Q/edit?gid=1882612924#gid=1882612924"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1lIrnV_ZHDLEPZv7pynpjIToXcPu2WGOiXYnk-OGsrZ0/edit?gid=1383450040#gid=1383450040"
 
 
 def get_google_sheets_data(sheet_url):
