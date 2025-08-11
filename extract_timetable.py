@@ -107,9 +107,28 @@ def get_timetable(spreadsheet, user_batch, user_section):
 
                 if cell_color == target_color:
                     class_entry = cell.get('formattedValue', '')
-                    if class_entry and any(p in class_entry for p in [f"({user_section})", f"-{user_section}"]):
-                        # Clean class name
-                        clean_entry = class_entry.split('(')[0].split('-')[0].strip()
+                    # More strict section filtering - check for exact section matches
+                    section_match = False
+                    if class_entry:
+                        # Check for patterns like "(CS-E)", "-E", "(E)", etc.
+                        section_patterns = [
+                            f"(CS-{user_section})",  # Pattern like "(CS-E)"
+                            f"-{user_section}",      # Pattern like "-E"
+                            f"({user_section})",     # Pattern like "(E)"
+                            f" {user_section} "      # Pattern like " E " (with spaces)
+                        ]
+                        section_match = any(pattern in class_entry for pattern in section_patterns)
+                    
+                    if class_entry and section_match:
+                        # Clean class name - remove section info
+                        clean_entry = class_entry
+                        # Remove section patterns from the course name
+                        for pattern in section_patterns:
+                            clean_entry = clean_entry.replace(pattern, '').strip()
+                        # Also remove any remaining parentheses and clean up
+                        clean_entry = clean_entry.replace('()', '').strip()
+                        if clean_entry.endswith('-'):
+                            clean_entry = clean_entry[:-1].strip()
 
                         # Extract time slot
                         time_row = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
