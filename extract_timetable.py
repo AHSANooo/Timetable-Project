@@ -29,6 +29,84 @@ def extract_batch_colors(spreadsheet):
     return batch_colors
 
 
+def analyze_sheet_structure(grid_data, sheet_name):
+    """Analyze sheet structure to help with debugging room extraction"""
+    print(f"\n=== Analyzing {sheet_name} sheet structure ===")
+    
+    # Analyze first 10 rows to understand the layout
+    for row_idx in range(min(10, len(grid_data))):
+        row_values = grid_data[row_idx].get('values', [])
+        print(f"Row {row_idx}: ", end="")
+        for col_idx, cell in enumerate(row_values):
+            if 'formattedValue' in cell and cell['formattedValue'].strip():
+                print(f"[{col_idx}:'{cell['formattedValue']}'] ", end="")
+        print()
+    
+    print("=" * 50)
+
+
+def clean_room_data(room_text):
+    """Clean and validate room data to ensure consistent format"""
+    if not room_text or room_text == "Unknown":
+        return "Unknown"
+    
+    # Remove extra whitespace and normalize
+    room_text = room_text.strip()
+    
+    # Remove common prefixes/suffixes that might be added accidentally
+    prefixes_to_remove = ['room', 'room no', 'room number', 'location', 'venue']
+    for prefix in prefixes_to_remove:
+        if room_text.lower().startswith(prefix):
+            room_text = room_text[len(prefix):].strip()
+    
+    # Handle special cases like "Room No. 405" -> "405"
+    if room_text.lower().startswith('no.'):
+        room_text = room_text[3:].strip()
+    elif room_text.lower().startswith('no '):
+        room_text = room_text[3:].strip()
+    
+    # Remove extra punctuation
+    room_text = room_text.strip('.,;:')
+    
+    # If the result is empty or just whitespace, return Unknown
+    if not room_text or room_text.isspace():
+        return "Unknown"
+    
+    return room_text
+
+
+def find_room_column(grid_data):
+    """Find the column index that contains room information by looking for room-related headers"""
+    room_keywords = ['room', 'rooms', 'room no', 'room number', 'location', 'venue']
+    
+    # Search through the first few rows to find room headers
+    for row_idx in range(min(10, len(grid_data))):
+        row_values = grid_data[row_idx].get('values', [])
+        for col_idx, cell in enumerate(row_values):
+            if 'formattedValue' in cell:
+                cell_value = cell['formattedValue'].strip().lower()
+                if any(keyword in cell_value for keyword in room_keywords):
+                    return col_idx
+    
+    # If no room header found, try to find by pattern (looking for room-like values)
+    for row_idx in range(min(10, len(grid_data))):
+        row_values = grid_data[row_idx].get('values', [])
+        for col_idx, cell in enumerate(row_values):
+            if 'formattedValue' in cell:
+                cell_value = cell['formattedValue'].strip()
+                # Look for patterns like "Room 101", "101", "Lab 1", etc.
+                if (cell_value and 
+                    (cell_value.isdigit() or 
+                     'room' in cell_value.lower() or 
+                     'lab' in cell_value.lower() or
+                     any(char.isdigit() for char in cell_value))):
+                    return col_idx
+    
+    # Default to first column if no room column found
+    # Default to first column if no room column found
+    return 0
+
+
 def parse_time_slot(time_slot):
     """Extracts the start time from a given time slot string and converts it to a sortable datetime object."""
     if time_slot == "Unknown":
@@ -44,7 +122,6 @@ def parse_time_slot(time_slot):
             pass  # Continue if parsing fails
 
     return datetime.max  # Default to max if parsing fails
-
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
@@ -69,6 +146,12 @@ def get_timetable(spreadsheet, user_batch, user_section):
         if len(grid_data) < 6:
             continue
 
+        # Analyze sheet structure for debugging (uncomment for debugging)
+        # analyze_sheet_structure(grid_data, sheet_name)
+
+        # Find the room column dynamically
+        room_column = find_room_column(grid_data)
+
         # Extract class timings (Row 5)
         class_time_row = grid_data[4] if len(grid_data) > 4 else None
 
@@ -92,9 +175,44 @@ def get_timetable(spreadsheet, user_batch, user_section):
             # and if the current row is after the lab timing row
             is_lab = lab_time_row_index is not None and row_idx >= lab_time_row_index + 1
 
-            # Extract room number dynamically
+            # Extract room number from the correct column
             row_values = row.get('values', []) if isinstance(row, dict) else []
-            room = row_values[0].get('formattedValue', 'Unknown').strip() if row_values else "Unknown"
+            room = "Unknown"
+            
+            # First try the detected room column
+            if row_values and len(row_values) > room_column:
+                room_cell = row_values[room_column]
+                if 'formattedValue' in room_cell:
+                    room = room_cell['formattedValue'].strip()
+            
+            # If room is still unknown or empty, search for room info in other columns
+            if not room or room == "Unknown":
+                for col_idx, cell in enumerate(row_values):
+                    if col_idx != room_column and 'formattedValue' in cell:
+                        cell_value = cell['formattedValue'].strip()
+                        # Look for room-like patterns
+                        if (cell_value and 
+                            (cell_value.isdigit() or 
+                             'room' in cell_value.lower() or 
+                             'lab' in cell_value.lower() or
+                             'class' in cell_value.lower() or
+                             any(char.isdigit() for char in cell_value))):
+                            room = cell_value
+                            break
+            
+            # If still no room found, try to extract from the first non-empty cell
+            if not room or room == "Unknown":
+                for cell in row_values:
+                    if 'formattedValue' in cell and cell['formattedValue'].strip():
+                        potential_room = cell['formattedValue'].strip()
+                        # Skip if it looks like a course name or time
+                        if (not any(keyword in potential_room.lower() for keyword in ['am', 'pm', ':', '-']) and
+                            not any(keyword in potential_room.lower() for keyword in ['cs-', 'bs-', 'semester', 'batch'])):
+                            room = potential_room
+                            break
+            
+            # Clean the room data
+            room = clean_room_data(room)
 
             # Check all cells in row
             for col_idx, cell in enumerate(row_values):
