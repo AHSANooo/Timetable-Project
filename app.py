@@ -184,20 +184,30 @@ def main():
         # Update search filters (store selected_year in session state's selected_batch for persistence)
         update_search_filters(search_query, selected_department, selected_batch)
 
-        # Search courses — first apply query + department using shared search function, then apply year-based filtering
-        if search_query or selected_department:
-            filtered = search_courses(all_courses, search_query, selected_department, "")
-        else:
-            filtered = all_courses
+        # Add an explicit Search button below filters — the results are shown only after user presses it.
+        # If user presses Search, run the search and save results to session state.
+        search_triggered = False
+        if st.button("🔎 Search Courses", key="search_courses_btn"):
+            search_triggered = True
 
-        # If a year is selected, further filter courses whose 'batch' contains that year
-        if selected_batch:
-            year = selected_batch
-            search_results = [c for c in filtered if year in str(c.get('batch', ''))]
-        else:
-            search_results = filtered
+            # Search courses — first apply query + department using shared search function, then apply year-based filtering
+            if search_query or selected_department:
+                filtered = search_courses(all_courses, search_query, selected_department, "")
+            else:
+                filtered = all_courses
 
-        save_search_results(search_results)
+            # If a year is selected, further filter courses whose 'batch' contains that year
+            if selected_batch:
+                year = selected_batch
+                search_results = [c for c in filtered if year in str(c.get('batch', ''))]
+            else:
+                search_results = filtered
+
+            # Save results so they persist across reruns
+            save_search_results(search_results)
+
+        # Load last saved search results (if any)
+        search_results = get_last_search_results()
 
         if search_results:
             # Show a fixed display label as requested
@@ -224,7 +234,10 @@ def main():
                             remove_course_from_selection(course)
                             st.rerun()
         else:
-            st.info("No courses found matching your criteria.")
+            if search_triggered:
+                st.info("No courses found matching your criteria.")
+            else:
+                st.write("")
         
         # Selected courses section
         selected_courses = get_selected_courses()

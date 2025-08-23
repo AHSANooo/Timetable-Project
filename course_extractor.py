@@ -182,5 +182,8 @@ def search_courses(courses: List[Dict], query: str = "", department: str = "", b
                           query_lower in c['name'].lower() or
                           query_lower in c['department'].lower() or
                           query_lower in c['section'].lower()]
-    
+
+    # Sort alphabetically by course name, then department, then section
+    filtered_courses.sort(key=lambda c: (c.get('name', '').lower(), c.get('department', ''), c.get('section', '')))
+
     return filtered_courses
