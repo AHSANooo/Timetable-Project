@@ -150,16 +150,34 @@ def parse_time_slot(time_slot):
     if time_slot == "Unknown":
         return datetime.max  # Place unknown times at the end
 
-    # Handle formats like "08:30-09:50 AM"
-    time_parts = time_slot.split('-')
-    if time_parts:
-        first_time = time_parts[0].strip()  # Extract first time part
-        try:
-            return datetime.strptime(first_time, "%I:%M %p")  # Convert to datetime with AM/PM
-        except ValueError:
-            pass  # Continue if parsing fails
+    # Try to extract the first HH:MM token
+    try:
+        m = re.search(r"(\d{1,2}:\d{2})", str(time_slot))
+        if not m:
+            return datetime.max
 
-    return datetime.max  # Default to max if parsing fails
+        first_time_str = m.group(1)
+
+        # Detect if AM/PM appears anywhere in the slot
+        ampm_match = re.search(r"\b(am|pm|AM|PM)\b", str(time_slot))
+        if ampm_match:
+            # If AM/PM is present, parse using 12-hour format
+            ampm = ampm_match.group(1).upper()
+            try:
+                return datetime.strptime(f"{first_time_str} {ampm}", "%I:%M %p")
+            except ValueError:
+                pass
+
+        # Otherwise, try 24-hour format first, then 12-hour without AM/PM
+        try:
+            return datetime.strptime(first_time_str, "%H:%M")
+        except ValueError:
+            try:
+                return datetime.strptime(first_time_str, "%I:%M")
+            except ValueError:
+                return datetime.max
+    except Exception:
+        return datetime.max
 
 
 def get_timetable(spreadsheet, user_batch, user_section):
@@ -455,20 +473,62 @@ def matches_selected_course(class_entry, selected_course, cell_color, batch_colo
     if not section_match:
         return False
 
-    # Validate batch: map cell_color to a batch string (if available) and ensure it corresponds
-    # to the selected course's batch (exact match) or at least the same year.
+    # Validate batch and department: map cell_color to a batch string (if available)
+    # and ensure it corresponds to the selected course's batch (exact match).
+    # If exact batch doesn't match, allow same-year only if department also matches.
     batch_from_color = batch_colors.get(cell_color, "") if batch_colors else ""
     selected_batch = selected_course.get('batch', '')
+    selected_dept = selected_course.get('department', '')
 
-    if batch_from_color and selected_batch:
-        if batch_from_color == selected_batch:
+    def extract_dept_from_batch(batch_str: str) -> str:
+        """Extract department token from batch strings like 'BS-CS-1' or 'BS CS (2023)'."""
+        if not batch_str:
+            return ""
+        # Handle dash-separated e.g., BS-CS-1
+        if '-' in batch_str:
+            parts = batch_str.split('-')
+            if len(parts) >= 2:
+                return parts[1]
+        # Otherwise look for 2-4 uppercase tokens
+        tokens = re.findall(r"\b[A-Z]{2,4}\b", batch_str)
+        for t in tokens:
+            if t != 'BS':
+                return t
+        return ""
+
+    # If we have a batch/color mapping, use it to validate department and batch
+    if batch_from_color:
+        dept_from_color = extract_dept_from_batch(batch_from_color)
+        # If department is known from color and doesn't match selected, reject
+        if dept_from_color and selected_dept and dept_from_color != selected_dept:
+            return False
+
+        # If exact batch matches, accept
+        if selected_batch and batch_from_color == selected_batch:
             return True
-        # Fallback: compare year tokens
+
+        # Fallback: allow same-year matching only if department matches (or not provided)
         y1 = re.search(r"(20\d{2})", batch_from_color)
         y2 = re.search(r"(20\d{2})", selected_batch)
         if y1 and y2 and y1.group(1) == y2.group(1):
-            return True
+            # ensure department alignment if we can
+            if dept_from_color:
+                if selected_dept and dept_from_color != selected_dept:
+                    return False
+                return True
+            else:
+                # No dept info from color; require department token to be present in class entry
+                if selected_dept and selected_dept.lower() not in class_entry.lower():
+                    return False
+                return True
+
         return False
 
-    # If we don't have batch info, fall back to name/section matching
+    # If no batch/color info is available for the cell, require department to appear in the cell entry
+    # to avoid cross-batch matches. This is a conservative fallback.
+    if selected_dept:
+        if selected_dept.lower() not in class_entry.lower():
+            return False
+
+    # If department can't be validated, fall back to name+section match (already checked)
     return True
