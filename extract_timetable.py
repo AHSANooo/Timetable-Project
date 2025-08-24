@@ -524,6 +524,11 @@ def matches_selected_course(class_entry, selected_course, cell_color, batch_colo
     if selected_course['name'].lower() not in class_entry.lower():
         return False
     
+    # If the selected course doesn't contain "Lab" but the class entry does, reject it
+    # This prevents fetching lab sessions when only the main course is selected
+    if 'lab' not in selected_course['name'].lower() and 'lab' in class_entry.lower():
+        return False
+    
     # Check if the section matches
     section_patterns = [
         f"(CS-{selected_course['section']})",
