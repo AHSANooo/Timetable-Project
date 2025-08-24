@@ -97,11 +97,32 @@ def is_similar_entry(existing_entry, new_entry) -> bool:
     normalized course names to allow skipping rows like "Comp Net" vs "Comp Net Lab".
     """
     # existing_entry/new_entry: tuples (parse_time, time_slot, room, session_type, course, section, batch)
-    try:
-        _, _, room_e, type_e, course_e, section_e, batch_e = existing_entry
-        _, _, room_n, type_n, course_n, section_n, batch_n = new_entry
-    except Exception:
+    def unpack(e):
+        # Support multiple tuple shapes used in the code:
+        # - (rank, parsed_dt, time_slot, room, type, course)
+        # - (rank, parsed_dt, time_slot, room, type, course, section, batch)
+        # - (parsed_dt, time_slot, room, type, course, section, batch)
+        if not isinstance(e, (list, tuple)):
+            return None
+        if len(e) == 8:
+            _, _, _, room, type_, course, section, batch = e
+        elif len(e) == 6:
+            _, _, _, room, type_, course = e
+            section = ''
+            batch = ''
+        elif len(e) == 7:
+            _, _, room, type_, course, section, batch = e
+        else:
+            return None
+        return (room, type_, course, section, batch)
+
+    a = unpack(existing_entry)
+    b = unpack(new_entry)
+    if not a or not b:
         return False
+
+    room_e, type_e, course_e, section_e, batch_e = a
+    room_n, type_n, course_n, section_n, batch_n = b
 
     if room_e != room_n or type_e != type_n or section_e != section_n or batch_e != batch_n:
         return False
@@ -143,6 +164,44 @@ def find_room_column(grid_data):
     # Default to first column if no room column found
     # Default to first column if no room column found
     return 0
+
+
+def build_time_col_rank(grid_data):
+    """Detect the time header row and return (time_row, col_rank).
+
+    Strategy:
+    - Search the first few rows for a row where the first column contains 'room' (case-insensitive).
+      If found, that row holds the room header in col0 and time headers to its right (col_idx >= 1).
+    - Otherwise, fallback to row index 4 (if exists) as the time header row and consider times starting at col 0.
+    - Build a mapping col_idx -> rank (0-based) for columns that contain a non-empty formattedValue in the time row.
+    """
+    time_row = None
+    start_col = 0
+    for i in range(min(10, len(grid_data))):
+        row_values = grid_data[i].get('values', [])
+        if row_values and isinstance(row_values, list) and len(row_values) > 0:
+            first_cell = row_values[0]
+            if isinstance(first_cell, dict) and 'formattedValue' in first_cell:
+                if 'room' in first_cell['formattedValue'].strip().lower():
+                    time_row = grid_data[i]
+                    start_col = 1
+                    break
+
+    if time_row is None:
+        time_row = grid_data[4] if len(grid_data) > 4 else None
+        start_col = 0
+
+    col_rank = {}
+    if time_row:
+        rank = 0
+        for col_idx, cell in enumerate(time_row.get('values', [])):
+            if col_idx < start_col:
+                continue
+            if isinstance(cell, dict) and 'formattedValue' in cell and cell['formattedValue'].strip():
+                col_rank[col_idx] = rank
+                rank += 1
+
+    return time_row, col_rank
 
 
 def parse_time_slot(time_slot):
@@ -208,13 +267,13 @@ def get_timetable(spreadsheet, user_batch, user_section):
         # Find the room column dynamically
         room_column = find_room_column(grid_data)
 
-        # Extract class timings (Row 5)
-        class_time_row = grid_data[4] if len(grid_data) > 4 else None
+        # Extract class timings (Row 5) and build column rank mapping
+        class_time_row, col_rank = build_time_col_rank(grid_data)
 
         # Detect the correct lab row dynamically by searching for 'Lab' in first column
         lab_time_row_index = None
         lab_time_row = None
-        
+
         # Search through all rows to find the one containing 'Lab' in the first column
         for i in range(len(grid_data)):
             row_values = grid_data[i].get('values', [])
@@ -234,28 +293,28 @@ def get_timetable(spreadsheet, user_batch, user_section):
             # Extract room number from the correct column
             row_values = row.get('values', []) if isinstance(row, dict) else []
             room = "Unknown"
-            
+
             # First try the detected room column
             if row_values and len(row_values) > room_column:
                 room_cell = row_values[room_column]
                 if 'formattedValue' in room_cell:
                     room = room_cell['formattedValue'].strip()
-            
+
             # If room is still unknown or empty, search for room info in other columns
             if not room or room == "Unknown":
                 for col_idx, cell in enumerate(row_values):
                     if col_idx != room_column and 'formattedValue' in cell:
                         cell_value = cell['formattedValue'].strip()
                         # Look for room-like patterns
-                        if (cell_value and 
-                            (cell_value.isdigit() or 
-                             'room' in cell_value.lower() or 
+                        if (cell_value and
+                            (cell_value.isdigit() or
+                             'room' in cell_value.lower() or
                              'lab' in cell_value.lower() or
                              'class' in cell_value.lower() or
                              any(char.isdigit() for char in cell_value))):
                             room = cell_value
                             break
-            
+
             # If still no room found, try to extract from the first non-empty cell
             if not room or room == "Unknown":
                 for cell in row_values:
@@ -266,7 +325,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
                             not any(keyword in potential_room.lower() for keyword in ['cs-', 'bs-', 'semester', 'batch'])):
                             room = potential_room
                             break
-            
+
             # Clean the room data
             room = clean_room_data(room)
 
@@ -292,7 +351,7 @@ def get_timetable(spreadsheet, user_batch, user_section):
                             f" {user_section} "      # Pattern like " E " (with spaces)
                         ]
                         section_match = any(pattern in class_entry for pattern in section_patterns)
-                    
+
                     if class_entry and section_match:
                         # Clean class name - remove section info
                         clean_entry = class_entry
@@ -304,19 +363,21 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         if clean_entry.endswith('-'):
                             clean_entry = clean_entry[:-1].strip()
 
-                        # Extract time slot
-                        time_row = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
+                        # Extract time slot and column rank
+                        time_row_for_slot = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
                         time_slot = "Unknown"
-                        if time_row:
-                            time_values = time_row.get('values', [])
+                        if time_row_for_slot:
+                            time_values = time_row_for_slot.get('values', [])
                             if len(time_values) > col_idx:
                                 time_slot = time_values[col_idx].get('formattedValue', 'Unknown')
+                        rank = col_rank.get(col_idx, 999)
 
                         # Store in dictionary (group by day)
                         if sheet_name not in timetable:
                             timetable[sheet_name] = []
 
-                        timetable[sheet_name].append((parse_time_slot(time_slot), time_slot, room, "Lab" if is_lab else "Class", clean_entry))
+                        # Entry includes (rank, parsed_time, time_slot, room, type, course)
+                        timetable[sheet_name].append((rank, parse_time_slot(time_slot), time_slot, room, "Lab" if is_lab else "Class", clean_entry))
 
     # Format output as a Markdown table
     output = []
@@ -325,8 +386,8 @@ def get_timetable(spreadsheet, user_batch, user_section):
         output.append("| Time | Room | Type | Course |")
         output.append("|------|------|------|--------|")
 
-        # Sort sessions by extracted start time before displaying
-        for _, time_slot, room, session_type, course in sorted(sessions, key=lambda x: x[0]):
+        # Sort sessions by column rank then extracted start time before displaying
+        for _, _, time_slot, room, session_type, course in sorted(sessions, key=lambda x: (x[0], x[1])):
             output.append(f"| {time_slot} | {room} | {session_type} | {course} |")
         output.append("\n")
 
@@ -362,8 +423,8 @@ def get_custom_timetable(spreadsheet, selected_courses):
         # Find the room column dynamically
         room_column = find_room_column(grid_data)
 
-        # Extract class timings (Row 5)
-        class_time_row = grid_data[4] if len(grid_data) > 4 else None
+        # Extract class timings (Row 5) and build column rank mapping
+        class_time_row, col_rank = build_time_col_rank(grid_data)
 
         # Detect the correct lab row dynamically
         lab_time_row_index = None
@@ -421,7 +482,9 @@ def get_custom_timetable(spreadsheet, selected_courses):
                             if sheet_name not in timetable:
                                 timetable[sheet_name] = []
 
+                            rank = col_rank.get(col_idx, 999)
                             entry = (
+                                rank,
                                 parse_time_slot(time_slot),
                                 time_slot,
                                 room,
@@ -448,8 +511,8 @@ def get_custom_timetable(spreadsheet, selected_courses):
         output.append("| Time | Room | Type | Course | Section | Batch |")
         output.append("|------|------|------|--------|---------|-------|")
 
-        # Sort sessions by extracted start time before displaying
-        for _, time_slot, room, session_type, course, section, batch in sorted(sessions, key=lambda x: x[0]):
+        # Sort sessions by column rank then extracted start time before displaying
+        for _, _, time_slot, room, session_type, course, section, batch in sorted(sessions, key=lambda x: (x[0], x[1])):
             output.append(f"| {time_slot} | {room} | {session_type} | {course} | {section} | {batch} |")
         output.append("\n")
 
@@ -472,6 +535,21 @@ def matches_selected_course(class_entry, selected_course, cell_color, batch_colo
     section_match = any(pattern in class_entry for pattern in section_patterns)
     if not section_match:
         return False
+
+    # If the class entry explicitly mentions a department token like 'DS-B' or '(DS-B)',
+    # extract that department and reject if it doesn't match the selected department.
+    dept_in_entry = None
+    m_dept = re.search(r"\b([A-Z]{2,4})-[A-Z]\b", class_entry)
+    if m_dept:
+        dept_in_entry = m_dept.group(1)
+    else:
+        m_paren = re.search(r"\(\s*([A-Z]{2,4})\s*-\s*[A-Z]\s*\)", class_entry)
+        if m_paren:
+            dept_in_entry = m_paren.group(1)
+
+    if dept_in_entry and selected_course.get('department'):
+        if dept_in_entry != selected_course.get('department'):
+            return False
 
     # Validate batch and department: map cell_color to a batch string (if available)
     # and ensure it corresponds to the selected course's batch (exact match).
