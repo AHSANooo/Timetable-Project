@@ -65,8 +65,26 @@ def get_google_sheets_data(sheet_url):
     return spreadsheet
 
 
+def format_course_display(course: dict) -> str:
+    """Return a compact display string for a course: 'name dept section year-or-batch'
+    Example: 'Data St CS A 2024' (falls back to full batch string if year not found)
+    """
+    name = course.get('name', '').strip()
+    dept = course.get('department', '').strip()
+    section = course.get('section', '').strip()
+    batch = str(course.get('batch', '')).strip()
+    # Prefer year (e.g., 2024) when available inside the batch string
+    m = re.search(r"(20\d{2})", batch)
+    year = m.group(1) if m else batch
+    parts = [p for p in [name, dept, section, year] if p]
+    return " ".join(parts)
+
+
 def main():
     st.title("FAST-NUCES FCS Timetable System")
+    
+    # Add a version indicator to ensure we're running the latest code
+    st.caption("")
 
     # Initialize session state
     initialize_session_state()
@@ -148,11 +166,6 @@ def main():
         # Search and filter section
         col1, col2, col3 = st.columns(3)
 
-        with col1:
-            search_query = st.text_input("🔍 Search courses",
-                                       value=st.session_state.search_query,
-                                       placeholder="Enter course name...")
-
         with col2:
             # Safely compute the initial index for department selectbox — avoid ValueError if session value not present
             dept_index = 0
@@ -181,63 +194,46 @@ def main():
             # For filtering we'll later map selected_year -> list of batches via year_to_batches
             selected_batch = selected_year or ""
 
+        with col1:
+            # Get filtered courses based on current department and batch selections
+            # This allows the course dropdown to update dynamically
+            current_courses = extract_all_courses(spreadsheet)
+            
+            # Apply department filter if selected
+            if selected_department:
+                current_courses = [c for c in current_courses if c.get('department') == selected_department]
+            
+            # Apply batch/year filter if selected
+            if selected_year:
+                current_courses = [c for c in current_courses if selected_year in str(c.get('batch', ''))]
+            
+            # Create course options for dropdown with the new format: "course_name department section batch"
+            course_options = ["Select a course..."]  # Clear option message
+            course_map = {}  # Map display text to course object
+            
+            for course in current_courses:
+                display_text = format_course_display(course)
+                course_options.append(display_text)
+                course_map[display_text] = course
+            
+            selected_course_text = st.selectbox("🔍 Search courses",
+                                               course_options,
+                                               index=0)
+
         # Update search filters (store selected_year in session state's selected_batch for persistence)
-        update_search_filters(search_query, selected_department, selected_batch)
+        update_search_filters("", selected_department, selected_batch)
 
-        # Add an explicit Search button below filters — the results are shown only after user presses it.
-        # If user presses Search, run the search and save results to session state.
-        search_triggered = False
-        if st.button("🔎 Search Courses", key="search_courses_btn"):
-            search_triggered = True
-
-            # Search courses — first apply query + department using shared search function, then apply year-based filtering
-            if search_query or selected_department:
-                filtered = search_courses(all_courses, search_query, selected_department, "")
+        # Handle course selection from dropdown - automatically add to selection
+        if selected_course_text and selected_course_text != "Select a course..." and selected_course_text in course_map:
+            selected_course = course_map[selected_course_text]
+            
+            # Check if course is not already selected, then add it automatically
+            if not is_course_selected(selected_course):
+                add_course_to_selection(selected_course)
+                st.rerun()
             else:
-                filtered = all_courses
-
-            # If a year is selected, further filter courses whose 'batch' contains that year
-            if selected_batch:
-                year = selected_batch
-                search_results = [c for c in filtered if year in str(c.get('batch', ''))]
-            else:
-                search_results = filtered
-
-            # Save results so they persist across reruns
-            save_search_results(search_results)
-
-        # Load last saved search results (if any)
-        search_results = get_last_search_results()
-
-        if search_results:
-            # Show a fixed display label as requested
-            st.subheader(f"📋 Search Results ({len(search_results)} records found)")
-
-            # Display search results
-            for course in search_results:
-                c1, c2, c3 = st.columns([3, 1, 1])
-
-                with c1:
-                    st.write(f"**{course['name']}** - {course['department']} - Section {course['section']} - {course['batch']}")
-
-                with c2:
-                    if is_course_selected(course):
-                        st.write("✅ Selected")
-                    else:
-                        if st.button("➕ Add", key=f"add_{course['name']}_{course['section']}_{course['batch']}"):
-                            add_course_to_selection(course)
-                            st.rerun()
-
-                with c3:
-                    if is_course_selected(course):
-                        if st.button("❌ Remove", key=f"remove_{course['name']}_{course['section']}_{course['batch']}"):
-                            remove_course_from_selection(course)
-                            st.rerun()
-        else:
-            if search_triggered:
-                st.info("No courses found matching your criteria.")
-            else:
-                st.write("")
+                # Show a brief message that it's already selected
+                st.info(f"✅ **{format_course_display(selected_course)}** is already in your selection.")
         
         # Selected courses section
         selected_courses = get_selected_courses()
@@ -254,7 +250,8 @@ def main():
             for i, course in enumerate(selected_courses):
                 col1, col2 = st.columns([4, 1])
                 with col1:
-                    st.write(f"**{course['name']}** - {course['department']} - Section {course['section']} - {course['batch']}")
+                    # Use compact format for selected courses list
+                    st.write(f"**{format_course_display(course)}**")
                 with col2:
                     if st.button("❌ Remove", key=f"selected_remove_{i}"):
                         remove_course_from_selection(course)

@@ -513,7 +513,11 @@ def get_custom_timetable(spreadsheet, selected_courses):
 
         # Sort sessions by column rank then extracted start time before displaying
         for _, _, time_slot, room, session_type, course, section, batch in sorted(sessions, key=lambda x: (x[0], x[1])):
-            output.append(f"| {time_slot} | {room} | {session_type} | {course} | {section} | {batch} |")
+            # Extract year from batch for compact display
+            import re
+            m = re.search(r"(20\d{2})", str(batch))
+            display_batch = m.group(1) if m else str(batch)
+            output.append(f"| {time_slot} | {room} | {session_type} | {course} | {section} | {display_batch} |")
         output.append("\n")
 
     return "\n".join(output) if output else "⚠️ No classes found for selected courses"
