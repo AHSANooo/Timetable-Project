@@ -112,11 +112,57 @@ def main():
         st.header("📚 Batch Timetable")
         st.write("Select your batch and section to view your timetable.")
         
-        # Dropdown for batch selection
+        # Prepare batch data for dropdown selection
         batch_list = list(batch_colors.values())
+        
+        # Extract departments from batch names (e.g., "BS CS (2024)" -> "CS")
+        dept_pattern = r"BS\s+([A-Z]+)"
+        departments_in_batches = set()
+        for batch_name in batch_list:
+            match = re.search(dept_pattern, str(batch_name))
+            if match:
+                departments_in_batches.add(match.group(1))
+        department_list_tab1 = sorted(departments_in_batches)
+        
+        # Extract years from batch names
+        year_to_batches_tab1 = {}
+        year_list_tab1 = []
+        for b in batch_list:
+            m = re.search(r"(20\d{2})", str(b))
+            if m:
+                y = m.group(1)
+                year_to_batches_tab1.setdefault(y, []).append(b)
+                if y not in year_list_tab1:
+                    year_list_tab1.append(y)
+        year_list_tab1 = sorted(year_list_tab1)
 
-        with st.expander("✅ **Select Your Batch and Department:**"):
-            batch = st.radio("Select your batch:", batch_list, index=None)
+        # Dropdown selection for department and batch
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            selected_department_tab1 = st.selectbox("🏢 Department",
+                                                   [""] + department_list_tab1,
+                                                   key="dept_tab1")
+        
+        with col2:
+            selected_year_tab1 = st.selectbox("👥 Batch",
+                                            [""] + year_list_tab1,
+                                            key="year_tab1")
+        
+        # Filter batches based on selections
+        filtered_batches = batch_list
+        if selected_department_tab1:
+            filtered_batches = [b for b in filtered_batches if selected_department_tab1 in str(b)]
+        if selected_year_tab1:
+            filtered_batches = [b for b in filtered_batches if selected_year_tab1 in str(b)]
+        
+        # Auto-select batch from filtered list (take first match)
+        if filtered_batches:
+            batch = filtered_batches[0]  # Auto-select first matching batch
+        else:
+            batch = ""
+            if selected_department_tab1 or selected_year_tab1:
+                st.warning("No batches found for the selected filters.")
 
         # User input for section
         section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
