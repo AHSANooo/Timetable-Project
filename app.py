@@ -208,7 +208,7 @@ def main():
                 current_courses = [c for c in current_courses if selected_year in str(c.get('batch', ''))]
             
             # Create course options for dropdown with the new format: "course_name department section batch"
-            course_options = ["Select a course..."]  # Clear option message
+            course_options = [""]  # Clear option message
             course_map = {}  # Map display text to course object
             
             for course in current_courses:
