@@ -45,6 +45,7 @@ except ImportError as e:
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1cmDXt7UTIKBVXBHhtZ0E4qMnJrRoexl2GmDFfTBl0Z4/edit?usp=drivesdk"
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_google_sheets_data(sheet_url):
     """Fetch Google Sheets data with formatting using Sheets API v4"""
     credentials_dict = st.secrets["google_service_account"]
@@ -63,6 +64,39 @@ def get_google_sheets_data(sheet_url):
     ).execute()
 
     return spreadsheet
+
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def get_cached_batch_colors(sheet_url):
+    """Get batch colors with caching to avoid repeated API calls"""
+    spreadsheet = get_google_sheets_data(sheet_url)
+    return extract_batch_colors(spreadsheet)
+
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes  
+def get_cached_all_courses(sheet_url):
+    """Get all courses with caching to avoid repeated extractions"""
+    spreadsheet = get_google_sheets_data(sheet_url)
+    return extract_all_courses(spreadsheet)
+
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def get_cached_departments_and_years(sheet_url):
+    """Get departments and years lists with caching"""
+    all_courses = get_cached_all_courses(sheet_url)
+    
+    # Extract departments
+    department_list = sorted(set(c.get('department', '') for c in all_courses if c.get('department')))
+    
+    # Extract years from courses
+    year_list = []
+    for course in all_courses:
+        batch = str(course.get('batch', ''))
+        m = re.search(r"(20\d{2})", batch)
+        if m and m.group(1) not in year_list:
+            year_list.append(m.group(1))
+    
+    return department_list, sorted(year_list)
 
 
 def format_course_display(course: dict) -> str:
@@ -89,18 +123,21 @@ def main():
     # Initialize session state
     initialize_session_state()
 
-    # Fetch full spreadsheet data
+    # Fetch cached data - this will only make API calls once every 5 minutes
     st.info("Welcome Everyone!")
     try:
-        spreadsheet = get_google_sheets_data(SHEET_URL)
+        # Use cached functions to reduce API calls
+        batch_colors = get_cached_batch_colors(SHEET_URL)
+        all_courses = get_cached_all_courses(SHEET_URL)
+        department_list, year_list = get_cached_departments_and_years(SHEET_URL)
     except Exception as e:
         st.error(f"❌ Connection failed: {str(e)}")
         return
 
     # Extract batch-color mappings
-    batch_colors = extract_batch_colors(spreadsheet)
-
     if not batch_colors:
+        st.error("⚠️ No batches found. Please check the sheet format.")
+        return
         st.error("⚠️ No batches found. Please check the sheet format.")
         return
 
@@ -136,7 +173,7 @@ def main():
                     year_list_tab1.append(y)
         year_list_tab1 = sorted(year_list_tab1)
 
-        # Dropdown selection for department and batch
+        # Dropdown selection for department and batch (no auto-refresh)
         col1, col2 = st.columns(2)
         
         with col1:
@@ -167,47 +204,30 @@ def main():
         # User input for section
         section = st.text_input("🔠 Enter your section (e.g., 'A')").strip().upper()
 
-        # Submit button
+        # Submit button - only fetch timetable when clicked
         if st.button("Show Timetable", key="batch_timetable_btn"):
             if not batch or not section:
                 st.warning("⚠️ Please enter both batch and section.")
-                return
-
-            schedule = get_timetable(spreadsheet, batch, section)
-
-            if schedule.startswith("⚠️"):
-                st.error(schedule)
             else:
-                st.markdown(f"## Timetable for **{batch}, Section {section}**")
-                st.markdown(schedule)
+                # Only fetch spreadsheet data when actually needed
+                with st.spinner("Generating timetable..."):
+                    spreadsheet = get_google_sheets_data(SHEET_URL)
+                    schedule = get_timetable(spreadsheet, batch, section)
+
+                    if schedule.startswith("⚠️"):
+                        st.error(schedule)
+                    else:
+                        st.markdown(f"## Timetable for **{batch}, Section {section}**")
+                        st.markdown(schedule)
 
     # Tab 2: Custom Course Selection (new functionality)
     with tab2:
         st.header("🔍 Custom Course Selection")
         st.write("Search and select individual courses to create your custom timetable.")
 
-        # Reuse the batch info already extracted for the Batch Timetable tab
+        # Use cached data instead of recomputing
         unique_batches = sorted(set(batch_colors.values())) if batch_colors else []
         batch_list = unique_batches
-
-        # Extract all courses for search
-        all_courses = extract_all_courses(spreadsheet)
-
-        # Derive departments directly from extracted courses to guarantee exact matches
-        department_list = sorted(set(c.get('department', '') for c in all_courses if c.get('department')))
-
-        # Build a unique list of years (no repetition) from batch labels and map year -> list of full batches
-        year_to_batches = {}
-        year_list = []
-        for b in batch_list:
-            m = re.search(r"(20\d{2})", str(b))
-            if m:
-                y = m.group(1)
-                year_to_batches.setdefault(y, []).append(b)
-                if y not in year_list:
-                    year_list.append(y)
-
-        year_list = sorted(year_list)
 
         # Filter section - moved above search for better mobile layout
         col1, col2 = st.columns(2)
@@ -243,7 +263,7 @@ def main():
         # Course search section - now appears below filters for better mobile experience
         # Get filtered courses based on current department and batch selections
         # This allows the course dropdown to update dynamically
-        current_courses = extract_all_courses(spreadsheet)
+        current_courses = all_courses  # Use cached data
         
         # Apply department filter if selected
         if selected_department:
@@ -270,16 +290,23 @@ def main():
         update_search_filters("", selected_department, selected_batch)
 
         # Handle course selection from dropdown - automatically add to selection
-        if selected_course_text and selected_course_text != "Select a course..." and selected_course_text in course_map:
+        # Only auto-add when course is actually selected (not empty) and different from current
+        if (selected_course_text and 
+            selected_course_text != "" and 
+            selected_course_text in course_map and
+            selected_course_text != st.session_state.get('last_selected_course', '')):
+            
             selected_course = course_map[selected_course_text]
             
             # Check if course is not already selected, then add it automatically
             if not is_course_selected(selected_course):
                 add_course_to_selection(selected_course)
+                st.session_state.last_selected_course = selected_course_text
                 st.rerun()
             else:
                 # Show a brief message that it's already selected
                 st.info(f"✅ **{format_course_display(selected_course)}** is already in your selection.")
+                st.session_state.last_selected_course = selected_course_text
         
         # Selected courses section
         selected_courses = get_selected_courses()
@@ -316,12 +343,16 @@ def main():
             center_col1, center_col2, center_col3 = st.columns([1, 2, 1])
             with center_col2:
                 if st.button("📅 Show Custom Timetable", key="custom_timetable_btn"):
-                    schedule = get_custom_timetable(spreadsheet, selected_courses)
-                    if schedule.startswith("⚠️"):
-                        st.error(schedule)
-                    else:
-                        st.markdown("## Custom Timetable")
-                        st.markdown(schedule)
+                    # Only fetch fresh spreadsheet data when generating custom timetable
+                    with st.spinner("Generating custom timetable..."):
+                        spreadsheet = get_google_sheets_data(SHEET_URL)
+                        schedule = get_custom_timetable(spreadsheet, selected_courses)
+                        
+                        if schedule.startswith("⚠️"):
+                            st.error(schedule)
+                        else:
+                            st.markdown("## Custom Timetable")
+                            st.markdown(schedule)
         else:
             st.info("No courses selected. Search and add courses to create your custom timetable.")
 
