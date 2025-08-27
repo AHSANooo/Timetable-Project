@@ -343,9 +343,17 @@ def get_timetable(spreadsheet, user_batch, user_section):
                     # More strict section filtering - check for exact section matches
                     section_match = False
                     if class_entry:
-                        # Check for patterns like "(CS-E)", "-E", "(E)", etc.
+                        # Check for patterns like "(DEPT-E)", "-E", "(E)", etc.
+                        # Extract department from batch for pattern matching
+                        dept_from_batch = ""
+                        if user_batch:
+                            if '-' in user_batch:
+                                parts = user_batch.split('-')
+                                if len(parts) >= 2:
+                                    dept_from_batch = parts[1]
+                        
                         section_patterns = [
-                            f"(CS-{user_section})",  # Pattern like "(CS-E)"
+                            f"({dept_from_batch}-{user_section})" if dept_from_batch else f"({user_section})",  # Pattern like "(DEPT-E)"
                             f"-{user_section}",      # Pattern like "-E"
                             f"({user_section})",     # Pattern like "(E)"
                             f" {user_section} "      # Pattern like " E " (with spaces)
@@ -534,8 +542,9 @@ def matches_selected_course(class_entry, selected_course, cell_color, batch_colo
         return False
     
     # Check if the section matches
+    department = selected_course.get('department', '')
     section_patterns = [
-        f"(CS-{selected_course['section']})",
+        f"({department}-{selected_course['section']})" if department else f"({selected_course['section']})",
         f"-{selected_course['section']}",
         f"({selected_course['section']})",
         f" {selected_course['section']} "

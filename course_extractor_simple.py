@@ -140,8 +140,15 @@ def parse_course_entry_simple(course_entry: str, batch: str) -> Dict:
     # Check for all possible sections (A-Z)
     for i in range(26):
         section_letter = chr(65 + i)  # A, B, C, ..., Z
+        # Get department from batch for pattern matching
+        dept_from_batch = ""
+        if '-' in batch:
+            parts = batch.split('-')
+            if len(parts) >= 2:
+                dept_from_batch = parts[1]
+        
         patterns = [
-            f"(CS-{section_letter})",
+            f"({dept_from_batch}-{section_letter})" if dept_from_batch else f"({section_letter})",
             f"-{section_letter}",
             f"({section_letter})",
             f" {section_letter} "

@@ -124,9 +124,10 @@ def parse_course_entry(course_entry: str, batch: str) -> Dict:
     section = ""
     course_name = course_entry
     
-    # Look for section patterns like "(CS-E)", "-E", "(E)", etc.
+    # Look for section patterns like "(DEPT-E)", "-E", "(E)", etc.
+    dept_from_batch = department if department else "CS"  # Fallback to CS if no department
     section_patterns = [
-        r'\(CS-([A-Z])\)',  # Pattern like "(CS-E)"
+        rf'\({dept_from_batch}-([A-Z])\)',  # Pattern like "(DEPT-E)"
         r'-([A-Z])\b',      # Pattern like "-E"
         r'\(([A-Z])\)',     # Pattern like "(E)"
         r'\s([A-Z])\s'      # Pattern like " E " (with spaces)
