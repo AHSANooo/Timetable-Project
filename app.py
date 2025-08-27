@@ -163,10 +163,10 @@ def main():
 
         year_list = sorted(year_list)
 
-        # Search and filter section
-        col1, col2, col3 = st.columns(3)
+        # Filter section - moved above search for better mobile layout
+        col1, col2 = st.columns(2)
 
-        with col2:
+        with col1:
             # Safely compute the initial index for department selectbox — avoid ValueError if session value not present
             dept_index = 0
             if st.session_state.selected_department:
@@ -179,7 +179,7 @@ def main():
                                              [""] + department_list,
                                              index=dept_index)
 
-        with col3:
+        with col2:
             # Decide initial index based on previous selection which might be a full batch or a year
             initial_index = 0
             if st.session_state.selected_batch:
@@ -194,31 +194,31 @@ def main():
             # For filtering we'll later map selected_year -> list of batches via year_to_batches
             selected_batch = selected_year or ""
 
-        with col1:
-            # Get filtered courses based on current department and batch selections
-            # This allows the course dropdown to update dynamically
-            current_courses = extract_all_courses(spreadsheet)
-            
-            # Apply department filter if selected
-            if selected_department:
-                current_courses = [c for c in current_courses if c.get('department') == selected_department]
-            
-            # Apply batch/year filter if selected
-            if selected_year:
-                current_courses = [c for c in current_courses if selected_year in str(c.get('batch', ''))]
-            
-            # Create course options for dropdown with the new format: "course_name department section batch"
-            course_options = [""]  # Clear option message
-            course_map = {}  # Map display text to course object
-            
-            for course in current_courses:
-                display_text = format_course_display(course)
-                course_options.append(display_text)
-                course_map[display_text] = course
-            
-            selected_course_text = st.selectbox("🔍 Search courses",
-                                               course_options,
-                                               index=0)
+        # Course search section - now appears below filters for better mobile experience
+        # Get filtered courses based on current department and batch selections
+        # This allows the course dropdown to update dynamically
+        current_courses = extract_all_courses(spreadsheet)
+        
+        # Apply department filter if selected
+        if selected_department:
+            current_courses = [c for c in current_courses if c.get('department') == selected_department]
+        
+        # Apply batch/year filter if selected
+        if selected_year:
+            current_courses = [c for c in current_courses if selected_year in str(c.get('batch', ''))]
+        
+        # Create course options for dropdown with the new format: "course_name department section batch"
+        course_options = [""]  # Clear option message
+        course_map = {}  # Map display text to course object
+        
+        for course in current_courses:
+            display_text = format_course_display(course)
+            course_options.append(display_text)
+            course_map[display_text] = course
+        
+        selected_course_text = st.selectbox("🔍 Search courses",
+                                           course_options,
+                                           index=0)
 
         # Update search filters (store selected_year in session state's selected_batch for persistence)
         update_search_filters("", selected_department, selected_batch)
