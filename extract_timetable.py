@@ -239,6 +239,37 @@ def parse_time_slot(time_slot):
         return datetime.max
 
 
+def parse_embedded_time_info(course_entry):
+    """
+    Parse embedded time information from course entries like:
+    'Func Eng (SE) 09:00-10:45' or 'Islamic (SE) 11:00-12:45'
+    
+    Returns: (cleaned_course_name, time_slot, has_embedded_time)
+    """
+    if not course_entry:
+        return course_entry, "Unknown", False
+    
+    # Look for time patterns in the course entry (HH:MM-HH:MM or HH:MM)
+    time_pattern = r'\b(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?)\b'
+    time_match = re.search(time_pattern, course_entry)
+    
+    if time_match:
+        # Extract the time portion
+        time_slot = time_match.group(1)
+        
+        # Remove the time portion from the course name
+        cleaned_entry = re.sub(time_pattern, '', course_entry).strip()
+        
+        # Clean up any double spaces or trailing characters
+        cleaned_entry = re.sub(r'\s+', ' ', cleaned_entry).strip()
+        if cleaned_entry.endswith('-'):
+            cleaned_entry = cleaned_entry[:-1].strip()
+        
+        return cleaned_entry, time_slot, True
+    
+    return course_entry, "Unknown", False
+
+
 def get_timetable(spreadsheet, user_batch, user_section):
     """Generate timetable using color-based matching and return formatted output"""
     batch_colors = extract_batch_colors(spreadsheet)
@@ -361,23 +392,38 @@ def get_timetable(spreadsheet, user_batch, user_section):
                         section_match = any(pattern in class_entry for pattern in section_patterns)
 
                     if class_entry and section_match:
-                        # Clean class name - remove section info
-                        clean_entry = class_entry
-                        # Remove section patterns from the course name
-                        for pattern in section_patterns:
-                            clean_entry = clean_entry.replace(pattern, '').strip()
-                        # Also remove any remaining parentheses and clean up
-                        clean_entry = clean_entry.replace('()', '').strip()
-                        if clean_entry.endswith('-'):
-                            clean_entry = clean_entry[:-1].strip()
+                        # First, try to parse embedded time information from the course entry itself
+                        cleaned_entry, embedded_time, has_embedded_time = parse_embedded_time_info(class_entry)
+                        
+                        if has_embedded_time:
+                            # Use the embedded time from the course entry
+                            time_slot = embedded_time
+                            # Clean the course name further by removing section patterns
+                            clean_entry = cleaned_entry
+                            for pattern in section_patterns:
+                                clean_entry = clean_entry.replace(pattern, '').strip()
+                            clean_entry = clean_entry.replace('()', '').strip()
+                            if clean_entry.endswith('-'):
+                                clean_entry = clean_entry[:-1].strip()
+                        else:
+                            # Fall back to the original logic for non-embedded time entries
+                            clean_entry = class_entry
+                            # Remove section patterns from the course name
+                            for pattern in section_patterns:
+                                clean_entry = clean_entry.replace(pattern, '').strip()
+                            # Also remove any remaining parentheses and clean up
+                            clean_entry = clean_entry.replace('()', '').strip()
+                            if clean_entry.endswith('-'):
+                                clean_entry = clean_entry[:-1].strip()
 
-                        # Extract time slot and column rank
-                        time_row_for_slot = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
-                        time_slot = "Unknown"
-                        if time_row_for_slot:
-                            time_values = time_row_for_slot.get('values', [])
-                            if len(time_values) > col_idx:
-                                time_slot = time_values[col_idx].get('formattedValue', 'Unknown')
+                            # Extract time slot from header row
+                            time_row_for_slot = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
+                            time_slot = "Unknown"
+                            if time_row_for_slot:
+                                time_values = time_row_for_slot.get('values', [])
+                                if len(time_values) > col_idx:
+                                    time_slot = time_values[col_idx].get('formattedValue', 'Unknown')
+                        
                         rank = col_rank.get(col_idx, 999)
 
                         # Store in dictionary (group by day)
@@ -478,13 +524,22 @@ def get_custom_timetable(spreadsheet, selected_courses):
                     for selected_course in selected_courses:
                         # Check if this cell matches the selected course (including batch validation)
                         if matches_selected_course(class_entry, selected_course, cell_color, batch_colors):
-                            # Extract time slot
-                            time_row = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
-                            time_slot = "Unknown"
-                            if time_row:
-                                time_values = time_row.get('values', [])
-                                if len(time_values) > col_idx:
-                                    time_slot = time_values[col_idx].get('formattedValue', 'Unknown')
+                            # First, try to parse embedded time information from the course entry itself
+                            cleaned_entry, embedded_time, has_embedded_time = parse_embedded_time_info(class_entry)
+                            
+                            if has_embedded_time:
+                                # Use the embedded time from the course entry
+                                time_slot = embedded_time
+                                course_name = cleaned_entry
+                            else:
+                                # Fall back to extracting time from header row
+                                time_row = lab_time_row if (is_lab and lab_time_row is not None) else class_time_row
+                                time_slot = "Unknown"
+                                if time_row:
+                                    time_values = time_row.get('values', [])
+                                    if len(time_values) > col_idx:
+                                        time_slot = time_values[col_idx].get('formattedValue', 'Unknown')
+                                course_name = selected_course['name']
 
                             # Store in dictionary (group by day)
                             if sheet_name not in timetable:
@@ -497,7 +552,7 @@ def get_custom_timetable(spreadsheet, selected_courses):
                                 time_slot,
                                 room,
                                 "Lab" if is_lab else "Class",
-                                selected_course['name'],
+                                course_name,  # Use the cleaned course name (either from embedded parsing or selected course)
                                 selected_course['section'],
                                 selected_course['batch']
                             )
@@ -532,13 +587,19 @@ def get_custom_timetable(spreadsheet, selected_courses):
 
 def matches_selected_course(class_entry, selected_course, cell_color, batch_colors):
     """Check if a class entry matches a selected course"""
+    # Parse embedded time info if present to get clean course name for matching
+    cleaned_entry, _, has_embedded_time = parse_embedded_time_info(class_entry)
+    
+    # Use cleaned entry for matching if it has embedded time, otherwise use original
+    entry_to_match = cleaned_entry if has_embedded_time else class_entry
+    
     # First check if the course name is in the entry
-    if selected_course['name'].lower() not in class_entry.lower():
+    if selected_course['name'].lower() not in entry_to_match.lower():
         return False
     
     # If the selected course doesn't contain "Lab" but the class entry does, reject it
     # This prevents fetching lab sessions when only the main course is selected
-    if 'lab' not in selected_course['name'].lower() and 'lab' in class_entry.lower():
+    if 'lab' not in selected_course['name'].lower() and 'lab' in entry_to_match.lower():
         return False
     
     # Check if the section matches
@@ -550,6 +611,7 @@ def matches_selected_course(class_entry, selected_course, cell_color, batch_colo
         f" {selected_course['section']} "
     ]
     
+    # Use the original class_entry for section matching since patterns might include time info
     section_match = any(pattern in class_entry for pattern in section_patterns)
     if not section_match:
         return False
