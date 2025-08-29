@@ -593,26 +593,70 @@ def matches_selected_course(class_entry, selected_course, cell_color, batch_colo
     # Use cleaned entry for matching if it has embedded time, otherwise use original
     entry_to_match = cleaned_entry if has_embedded_time else class_entry
     
-    # First check if the course name is in the entry
-    if selected_course['name'].lower() not in entry_to_match.lower():
-        return False
+    # Extract base course name for matching (handle group patterns like "(CS, G-1)")
+    selected_course_name = selected_course['name']
+    
+    # Check if this is a group course (contains patterns like "(CS,G-1)" - normalized format)
+    import re
+    group_pattern = r'\([A-Z]{2,4}(?:-[A-Z])?,\s*G-\d+\)'
+    entry_has_group = re.search(group_pattern, entry_to_match)
+    selected_has_group = re.search(group_pattern, selected_course_name)
+    
+    # For group courses, we need special matching logic
+    if entry_has_group or selected_has_group:
+        # Both should have group patterns for a match
+        if entry_has_group and selected_has_group:
+            # Extract base course names (everything before the parentheses)
+            selected_base = selected_course_name.split('(')[0].strip()
+            entry_base = entry_to_match.split('(')[0].strip()
+            
+            # Check if base course names match
+            if selected_base.lower() != entry_base.lower():
+                return False
+        else:
+            # If only one has group pattern, no match
+            return False
+    else:
+        # For non-group courses, check if the course name is in the entry
+        if selected_course_name.lower() not in entry_to_match.lower():
+            return False
     
     # If the selected course doesn't contain "Lab" but the class entry does, reject it
     # This prevents fetching lab sessions when only the main course is selected
-    if 'lab' not in selected_course['name'].lower() and 'lab' in entry_to_match.lower():
+    if 'lab' not in selected_course_name.lower() and 'lab' in entry_to_match.lower():
         return False
     
     # Check if the section matches
     department = selected_course.get('department', '')
+    section = selected_course.get('section', '')
+    
+    # Build section patterns
     section_patterns = [
-        f"({department}-{selected_course['section']})" if department else f"({selected_course['section']})",
-        f"-{selected_course['section']}",
-        f"({selected_course['section']})",
-        f" {selected_course['section']} "
+        f"({department}-{section})" if department else f"({section})",
+        f"-{section}",
+        f"({section})",
+        f" {section} "
     ]
     
-    # Use the original class_entry for section matching since patterns might include time info
-    section_match = any(pattern in class_entry for pattern in section_patterns)
+    # For group courses, we need precise section matching since the format is standardized
+    if entry_has_group or selected_has_group:
+        # For group courses, check for the specific format in the original cell entry
+        # The actual timetable format is like "Gen AI (CS-A,G-1)"
+        if department and section:
+            # Extract the group number from the selected course
+            group_match = re.search(r'G-(\d+)', selected_course_name)
+            if group_match:
+                group_number = group_match.group(1)
+                group_section_pattern = rf"\({department}-{section},\s*G-{group_number}\)"
+                section_match = re.search(group_section_pattern, class_entry) is not None
+            else:
+                section_match = False
+        else:
+            section_match = False
+    else:
+        # Use the original class_entry for section matching since patterns might include time info
+        section_match = any(pattern in class_entry for pattern in section_patterns)
+    
     if not section_match:
         return False
 
