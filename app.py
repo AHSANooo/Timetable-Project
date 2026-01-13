@@ -42,7 +42,7 @@ except ImportError as e:
     st.error(f"Failed to import user preferences functions: {e}")
     st.stop()
 
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1cmDXt7UTIKBVXBHhtZ0E4qMnJrRoexl2GmDFfTBl0Z4/edit?usp=drivesdk"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1ZQJqdArlwCS965uw4sbJrB6j8rEPfZerMT7X8qkXSzY/edit?usp=drivesdk"
 
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
